@@ -1,0 +1,29 @@
+{
+  "name": "torrent-manager",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Gerenciador unificado de clientes BitTorrent em executável único com interface web",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "bittorrent",
+    "qbittorrent",
+    "torrent-manager"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

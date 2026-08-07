@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TorrentManager — Gerenciador de BitTorrent</title>
+  <meta name="description" content="Aplicação unificada e modular para gerenciamento avançado de clientes BitTorrent.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Barra Superior -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>TorrentManager</h1>
+          <span class="brand-tagline">Single Executable • Modular BitTorrent Architecture</span>
+        </div>
+      </div>
+
+      <div class="header-badges">
+        <div class="badge status-pill active" id="systemStatusBadge">
+          <span class="indicator-dot"></span>
+          <span id="systemStatusText">Aplicação iniciada</span>
+        </div>
+        <div class="badge client-pill" id="clientBadge">
+          <span class="client-icon">⚡</span>
+          <span id="activeClientName">qBittorrent</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="main-content">
+      <!-- Hero Banner / Notificação de Inicialização -->
+      <section class="hero-card">
+        <div class="hero-glow"></div>
+        <div class="hero-content">
+          <div class="hero-badge">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <span>Pronto para Operação</span>
+          </div>
+          <h2 class="hero-title" id="welcomeHeading">Aplicação iniciada</h2>
+          <p class="hero-desc">
+            A estrutura inicial e a camada de abstração de clientes BitTorrent foram carregadas com sucesso. O sistema opera em um runtime unificado acessível localmente.
+          </p>
+
+          <div class="quick-stats-grid">
+            <div class="stat-box">
+              <span class="stat-label">Arquitetura</span>
+              <span class="stat-value">Modular (TypeScript)</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Camada de Provedor</span>
+              <span class="stat-value">TorrentClient Interface</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Cliente Conectado</span>
+              <span class="stat-value" id="statClientName">qBittorrent</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Modo de Distribuição</span>
+              <span class="stat-value">Executável Unificado</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Painéis de Arquitetura e Diagnóstico -->
+      <div class="cards-grid">
+        <!-- Card: Camada de Abstração BitTorrent (Etapa 2) -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <div class="card-icon blue">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+            </div>
+            <div>
+              <h3>Abstração TorrentClient</h3>
+              <p class="card-subtitle">Contrato desacoplado e extensível</p>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <p class="text-secondary">
+              A interface <code class="code-tag">TorrentClient</code> define os métodos fundamentais para qualquer cliente BitTorrent sem amarrar as regras de negócio:
+            </p>
+            
+            <div class="methods-list">
+              <div class="method-item">
+                <span class="method-badge">async</span>
+                <span class="method-name">conectar()</span>
+                <span class="method-desc">Autenticação e handshake com a Web API</span>
+              </div>
+              <div class="method-item">
+                <span class="method-badge">async</span>
+                <span class="method-name">listarTorrents()</span>
+                <span class="method-desc">Listagem unificada e status dos downloads</span>
+              </div>
+              <div class="method-item">
+                <span class="method-badge">async</span>
+                <span class="method-name">listarArquivos()</span>
+                <span class="method-desc">Mapeamento da árvore de arquivos e progresso</span>
+              </div>
+              <div class="method-item">
+                <span class="method-badge">async</span>
+                <span class="method-name">alterarPrioridades()</span>
+                <span class="method-desc">Controle seletivo de prioridades de download</span>
+              </div>
+            </div>
+
+            <div class="architecture-note">
+              <div class="note-icon">💡</div>
+              <div class="note-text">
+                <strong>Substituição Imediata:</strong> Para alterar a implementação ou adicionar novos clientes (Transmission, Deluge), basta instanciar outra classe que implemente a interface <code class="code-tag">TorrentClient</code>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Status do Servidor e Diagnóstico da Conexão -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <div class="card-icon green">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3>Diagnóstico e Conexão</h3>
+              <p class="card-subtitle">Comunicação e endpoints ativos</p>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="info-list">
+              <div class="info-row">
+                <span class="info-title">Servidor Local:</span>
+                <span class="info-data" id="serverLocalUrl">http://localhost:3000</span>
+              </div>
+              <div class="info-row">
+                <span class="info-title">API Endpoint:</span>
+                <span class="info-data"><code class="code-tag">/api/status</code></span>
+              </div>
+              <div class="info-row">
+                <span class="info-title">Implementação Ativa:</span>
+                <span class="info-data highlight" id="activeImplementation">QBittorrentClient</span>
+              </div>
+              <div class="info-row">
+                <span class="info-title">Estado do Cliente:</span>
+                <span class="info-data" id="clientConnectionStatus">Aguardando handshake</span>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button class="btn btn-primary" id="btnTestApi">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                <span>Verificar API</span>
+              </button>
+              <button class="btn btn-secondary" id="btnTestClient">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <span>Testar Conexão</span>
+              </button>
+            </div>
+
+            <!-- Resposta do teste -->
+            <div class="api-response-box" id="apiResponseBox" style="display: none;">
+              <div class="response-header">
+                <span>Resposta da API</span>
+                <span class="response-time" id="apiResponseTime">0ms</span>
+              </div>
+              <pre class="response-code" id="apiResponseCode"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Roadmap das Próximas Etapas -->
+      <section class="roadmap-card">
+        <h3 class="section-title">Evolução do Projeto</h3>
+        <div class="steps-progress">
+          <div class="step-pill completed">
+            <span class="step-num">1</span>
+            <span class="step-name">Estrutura Inicial</span>
+            <span class="step-check">✓</span>
+          </div>
+          <div class="step-pill completed">
+            <span class="step-num">2</span>
+            <span class="step-name">Abstração BitTorrent</span>
+            <span class="step-check">✓</span>
+          </div>
+          <div class="step-pill next">
+            <span class="step-num">3</span>
+            <span class="step-name">Conexão qBittorrent Web API</span>
+            <span class="step-check">→</span>
+          </div>
+          <div class="step-pill pending">
+            <span class="step-num">4</span>
+            <span class="step-name">Listagem de Torrents</span>
+          </div>
+          <div class="step-pill pending">
+            <span class="step-num">5</span>
+            <span class="step-name">Visualização dos Arquivos</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Rodapé -->
+    <footer class="app-footer">
+      <p>TorrentManager • Arquitetura Unificada de Alto Desempenho • TypeScript</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
