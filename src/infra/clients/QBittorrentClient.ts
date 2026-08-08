@@ -308,15 +308,25 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Altera prioridade de arquivos no qBittorrent
+   * Altera a prioridade de download de arquivos dentro de um torrent
+   * @param torrentHash Identificador hash do torrent
+   * @param fileIndices Índices dos arquivos dentro do torrent
+   * @param prioridade Nova prioridade a ser atribuída (0 = Não baixar, 1 = Normal, 6 = Alta, 7 = Máxima)
    */
   async alterarPrioridades(
     torrentHash: string,
     fileIndices: number[],
     prioridade: FilePriority
   ): Promise<boolean> {
-    if (!this.conectado || fileIndices.length === 0) {
-      return false;
+    if (!torrentHash || fileIndices.length === 0) {
+      return true; // Nada a alterar
+    }
+
+    if (!this.conectado) {
+      const ok = await this.conectar().catch(() => false);
+      if (!ok) {
+        throw new Error('Não foi possível conectar ao qBittorrent para alterar prioridades.');
+      }
     }
 
     try {
@@ -330,16 +340,55 @@ export class QBittorrentClient implements TorrentClient {
         url: `${urlBase}/api/v2/torrents/filePrio`,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         },
         body: params.toString(),
-        timeoutMs: 5000,
+        timeoutMs: 8000,
       });
 
-      return response.statusCode === 200;
-    } catch {
-      return false;
+      // Se a sessão expirou no qBittorrent, tenta renovar e reenviar
+      if (response.statusCode === 403 || response.statusCode === 401) {
+        this.conectado = false;
+        const reconnected = await this.conectar().catch(() => false);
+        if (reconnected) {
+          return this.alterarPrioridades(torrentHash, fileIndices, prioridade);
+        }
+        throw new Error('Sessão expirada no qBittorrent ao tentar alterar prioridades.');
+      }
+
+      // No qBittorrent, tanto 200 OK quanto 204 No Content representam sucesso
+      return response.statusCode === 200 || response.statusCode === 204;
+    } catch (err: any) {
+      console.error('[QBittorrentClient] Erro ao alterar prioridades:', err);
+      throw new Error(`Falha ao comunicar com o qBittorrent: ${err.message}`);
     }
+  }
+
+  /**
+   * Aplica em lote as prioridades de arquivos marcados (prioridade 1 - Normal)
+   * e arquivos desmarcados (prioridade 0 - Não baixar)
+   */
+  async aplicarPrioridadesConfiguradas(
+    torrentHash: string,
+    marcadosIndices: number[],
+    desmarcadosIndices: number[]
+  ): Promise<{ sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number }> {
+    let okMarcados = true;
+    let okDesmarcados = true;
+
+    if (marcadosIndices.length > 0) {
+      okMarcados = await this.alterarPrioridades(torrentHash, marcadosIndices, FilePriority.NORMAL);
+    }
+
+    if (desmarcadosIndices.length > 0) {
+      okDesmarcados = await this.alterarPrioridades(torrentHash, desmarcadosIndices, FilePriority.DO_NOT_DOWNLOAD);
+    }
+
+    return {
+      sucesso: okMarcados && okDesmarcados,
+      marcadosAlterados: marcadosIndices.length,
+      desmarcadosAlterados: desmarcadosIndices.length,
+    };
   }
 
   /**

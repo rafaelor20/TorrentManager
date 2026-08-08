@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statPausedTorrents = document.getElementById('statPausedTorrents');
   const statTotalSize = document.getElementById('statTotalSize');
 
-  // Elementos da seção de arquivos (Etapas 5, 6, 7 e 8)
+  // Elementos da seção de arquivos (Etapas 5, 6, 7, 8 e 9)
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const selectedTorrentName = document.getElementById('selectedTorrentName');
   const selectedTorrentMeta = document.getElementById('selectedTorrentMeta');
@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const filesHashTag = document.getElementById('filesHashTag');
   const filesTableBody = document.getElementById('filesTableBody');
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
+  const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
+  const btnSalvarPrioridadesText = document.getElementById('btnSalvarPrioridadesText');
+  const savePrioIcon = document.getElementById('savePrioIcon');
   
   // Pesquisa instantânea (Etapa 6)
   const inputSearchFiles = document.getElementById('inputSearchFiles');
@@ -961,6 +964,74 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (err) {
       mostrarToast('Erro', err.message, 'error');
+    }
+  });
+
+  // ==========================================
+  // ETAPA 9: APLICAÇÃO DAS PRIORIDADES NO CLIENTE
+  // ==========================================
+  btnSalvarPrioridades?.addEventListener('click', async () => {
+    if (!torrentSelecionadoAtual || todosArquivosDoTorrent.length === 0) {
+      mostrarToast('Aviso', 'Nenhum torrent ou arquivo selecionado para aplicar prioridades.', 'info');
+      return;
+    }
+
+    const marcadosIndices = [];
+    const desmarcadosIndices = [];
+
+    todosArquivosDoTorrent.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      if (arquivosSelecionadosIndices.has(fileIndex)) {
+        marcadosIndices.push(fileIndex);
+      } else {
+        desmarcadosIndices.push(fileIndex);
+      }
+    });
+
+    btnSalvarPrioridades.disabled = true;
+    if (savePrioIcon) savePrioIcon.classList.add('spin-animation');
+    if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = 'Enviando ao qBittorrent...';
+
+    try {
+      const hash = torrentSelecionadoAtual.hash;
+      const response = await fetch(`/api/torrents/${encodeURIComponent(hash)}/priority`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marcadosIndices,
+          desmarcadosIndices,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.sucesso) {
+        mostrarToast(
+          'Prioridades Aplicadas!',
+          `${marcadosIndices.length} arquivos marcados como Normal (1) e ${desmarcadosIndices.length} como Não Baixar (0).`,
+          'success'
+        );
+
+        setFeedback(
+          'success',
+          'Prioridades Atualizadas no qBittorrent',
+          `As prioridades do torrent "${torrentSelecionadoAtual.name}" foram sincronizadas com sucesso com o cliente BitTorrent.`
+        );
+
+        // Recarrega os arquivos do qBittorrent para sincronizar a interface com o estado real do cliente
+        await selecionarTorrent(torrentSelecionadoAtual);
+      } else {
+        const msgErro = data.erro || 'Falha ao aplicar prioridades no qBittorrent.';
+        mostrarToast('Erro ao Aplicar', msgErro, 'error');
+        setFeedback('error', 'Falha ao aplicar prioridades', msgErro);
+      }
+    } catch (err) {
+      mostrarToast('Erro de Rede', `Falha de comunicação: ${err.message}`, 'error');
+      setFeedback('error', 'Erro de Comunicação', err.message);
+    } finally {
+      btnSalvarPrioridades.disabled = false;
+      if (savePrioIcon) savePrioIcon.classList.remove('spin-animation');
+      if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = 'Aplicar Prioridades';
     }
   });
 

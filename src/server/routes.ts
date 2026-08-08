@@ -197,5 +197,72 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
+  // Aplicar prioridades aos arquivos do torrent (Etapa 9)
+  router.post('/torrents/:hash/priority', async (req: Request, res: Response) => {
+    try {
+      const hashParam = req.params.hash;
+      const hash = Array.isArray(hashParam) ? hashParam[0] : hashParam;
+      const { marcadosIndices, desmarcadosIndices, prioridade, indices } = req.body || {};
+
+      if (!hash) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: 'Hash do torrent é obrigatório.',
+        });
+      }
+
+      // Suporte a envio de marcados (prio 1) e desmarcados (prio 0)
+      if (Array.isArray(marcadosIndices) || Array.isArray(desmarcadosIndices)) {
+        const marcados = Array.isArray(marcadosIndices) ? marcadosIndices.map(Number) : [];
+        const desmarcados = Array.isArray(desmarcadosIndices) ? desmarcadosIndices.map(Number) : [];
+
+        let resultado;
+        if (torrentClient instanceof QBittorrentClient) {
+          resultado = await torrentClient.aplicarPrioridadesConfiguradas(hash, marcados, desmarcados);
+        } else {
+          let okMarcados = true;
+          let okDesmarcados = true;
+          if (marcados.length > 0) {
+            okMarcados = await torrentClient.alterarPrioridades(hash, marcados, 1);
+          }
+          if (desmarcados.length > 0) {
+            okDesmarcados = await torrentClient.alterarPrioridades(hash, desmarcados, 0);
+          }
+          resultado = {
+            sucesso: okMarcados && okDesmarcados,
+            marcadosAlterados: marcados.length,
+            desmarcadosAlterados: desmarcados.length,
+          };
+        }
+
+        return res.json({
+          sucesso: resultado.sucesso,
+          mensagem: `Prioridades aplicadas com sucesso no ${torrentClient.obterNome()}! (${resultado.marcadosAlterados} marcados como Normal, ${resultado.desmarcadosAlterados} como Não Baixar).`,
+          detalhes: resultado,
+        });
+      }
+
+      // Suporte a envio direto de lista de índices com prioridade fixa
+      if (Array.isArray(indices) && typeof prioridade === 'number') {
+        const ok = await torrentClient.alterarPrioridades(hash, indices.map(Number), prioridade);
+        return res.json({
+          sucesso: ok,
+          mensagem: `Prioridade ${prioridade} aplicada a ${indices.length} arquivos.`,
+        });
+      }
+
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Nenhuma alteração de prioridade informada no corpo da requisição.',
+      });
+    } catch (err: any) {
+      console.error('[Routes] Erro ao aplicar prioridades:', err);
+      return res.status(500).json({
+        sucesso: false,
+        erro: err?.message || 'Erro de comunicação ao aplicar prioridades no cliente BitTorrent.',
+      });
+    }
+  });
+
   return router;
 }
