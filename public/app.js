@@ -79,12 +79,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           statClientName.textContent = data.clienteAtivo;
         }
 
-        // Preenche campos do formulário se vazios
+        // Preenche campos do formulário com as configurações persistidas
         if (data.config) {
           if (!inputHost.value) inputHost.value = data.config.host || '127.0.0.1';
-          if (!inputPort.value) inputPort.value = data.config.port || 8080;
+          if (!inputPort.value) inputPort.value = data.config.port || 8877;
           if (!inputUsername.value && data.config.username) inputUsername.value = data.config.username;
           inputHttps.checked = Boolean(data.config.useHttps);
+
+          if (data.config.hasPassword && !inputPassword.value) {
+            inputPassword.placeholder = '•••••••• (senha salva)';
+          }
 
           const proto = inputHttps.checked ? 'https' : 'http';
           infoEndpoint.textContent = `${proto}://${inputHost.value}:${inputPort.value}`;
@@ -96,14 +100,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           statConnectionStatus.style.color = '#34d399';
           statAppVersion.textContent = data.infoCliente?.appVersion || 'Ativo';
           statWebApiVersion.textContent = data.infoCliente?.webApiVersion || 'v2.x';
-          infoCookieStatus.textContent = 'Ativo (Autenticado)';
+          infoCookieStatus.textContent = 'Ativo (Autenticado SID)';
           infoCookieStatus.style.color = '#34d399';
           btnDesconectar.style.display = 'inline-flex';
 
           setFeedback(
             'success',
             'Conexão ativa com o qBittorrent',
-            data.statusConexao?.detalhes || 'Autenticação realizada com sucesso.'
+            data.statusConexao?.detalhes || 'Autenticação e sessão SID validadas com sucesso.'
           );
         } else {
           statConnectionStatus.textContent = 'Desconectado';
@@ -124,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             setFeedback(
               'idle',
               'Pronto para conexão',
-              'Informe as credenciais do qBittorrent e clique em "Conectar ao qBittorrent".'
+              'Credenciais prontas. Clique em "Conectar ao qBittorrent" para iniciar a sessão.'
             );
           }
         }
@@ -140,13 +144,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   formConnection?.addEventListener('submit', async (e) => {
     e.preventDefault();
     btnConectar.disabled = true;
-    btnConectarText.textContent = 'Conectando...';
+    btnConectarText.textContent = 'Autenticando...';
 
     const payload = {
       host: inputHost.value.trim() || '127.0.0.1',
-      port: Number(inputPort.value) || 8080,
+      port: Number(inputPort.value) || 8877,
       username: inputUsername.value.trim(),
-      password: inputPassword.value,
+      password: inputPassword.value || undefined,
       useHttps: inputHttps.checked,
       salvarConfig: inputSaveConfig.checked,
     };
@@ -167,14 +171,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarToast('Conexão Estabelecida', data.mensagem || 'Conectado com sucesso ao qBittorrent!', 'success');
         setFeedback(
           'success',
-          'Conectado com sucesso!',
+          'Autenticado com sucesso!',
           data.infoCliente
             ? `Versão qBittorrent: ${data.infoCliente.appVersion} | Web API: ${data.infoCliente.webApiVersion} | Host: ${data.infoCliente.urlBase}`
             : data.mensagem
         );
       } else {
         const msgErro = data.erro || data.mensagem || 'Não foi possível conectar ao qBittorrent.';
-        mostrarToast('Falha na Conexão', msgErro, 'error');
+        mostrarToast('Falha na Autenticação', msgErro, 'error');
         setFeedback('error', 'Falha ao conectar', msgErro);
       }
 
@@ -194,9 +198,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const payload = {
         host: inputHost.value.trim() || '127.0.0.1',
-        port: Number(inputPort.value) || 8080,
+        port: Number(inputPort.value) || 8877,
         username: inputUsername.value.trim(),
-        password: inputPassword.value,
+        password: inputPassword.value || undefined,
         useHttps: inputHttps.checked,
       };
 

@@ -22,10 +22,10 @@ export class QBittorrentClient implements TorrentClient {
 
   constructor(config?: Partial<TorrentClientConfig>) {
     this.config = {
-      host: config?.host ?? '127.0.0.1',
-      port: config?.port ?? 8080,
+      host: config?.host ?? 'localhost',
+      port: config?.port ?? 8877,
       username: config?.username ?? 'admin',
-      password: config?.password ?? '',
+      password: config?.password ?? 'Ozzy261220',
       useHttps: config?.useHttps ?? false,
       timeoutMs: config?.timeoutMs ?? 5000,
     };
@@ -62,6 +62,12 @@ export class QBittorrentClient implements TorrentClient {
     };
   }
 
+  private obterUrlBase(): string {
+    const protocolo = this.config.useHttps ? 'https' : 'http';
+    const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    return `${protocolo}://${hostLimpo}:${this.config.port}`;
+  }
+
   /**
    * Conecta e autentica na Web API do qBittorrent via HTTP ou HTTPS
    */
@@ -70,76 +76,74 @@ export class QBittorrentClient implements TorrentClient {
       this.config = { ...configOverride };
     }
 
-    const protocolo = this.config.useHttps ? 'https' : 'http';
-    const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const urlBase = `${protocolo}://${hostLimpo}:${this.config.port}`;
+    const urlBase = this.obterUrlBase();
 
     try {
-      // 1. Tentar login na rota oficial /api/v2/auth/login
-      const formBody = new URLSearchParams();
+      // 1. Enviar requisição de autenticação para /api/v2/auth/login
+      const formParams = new URLSearchParams();
       if (this.config.username !== undefined) {
-        formBody.append('username', this.config.username);
+        formParams.append('username', this.config.username);
       }
       if (this.config.password !== undefined) {
-        formBody.append('password', this.config.password);
+        formParams.append('password', this.config.password);
       }
 
       const resLogin = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/auth/login`,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         },
-        body: formBody.toString(),
+        body: formParams.toString(),
         timeoutMs: this.config.timeoutMs || 5000,
       });
 
-      // qBittorrent retorna 200 OK com texto "Ok." ou "Fails." e cabeçalho set-cookie: SID=...
-      const respostaTexto = resLogin.bodyText.trim();
+      const respostaTexto = resLogin.bodyText ? resLogin.bodyText.trim() : '';
 
-      if (respostaTexto === 'Fails.' || resLogin.statusCode === 403) {
+      // Verifica se o qBittorrent retornou erro explícito (ex: "Fails.", IP banido ou 403/401)
+      if (respostaTexto.includes('Fails.') || (resLogin.statusCode === 403 && respostaTexto.includes('banido'))) {
         this.conectado = false;
         this.cookieAutenticacao = null;
         this.infoConexao = null;
-        this.detalhesUltimaConexao = `Falha de autenticação: usuário ou senha incorretos para ${urlBase}`;
+        this.detalhesUltimaConexao = respostaTexto.includes('banido')
+          ? respostaTexto
+          : `Falha de autenticação: usuário ou senha incorretos para ${urlBase}`;
         throw new Error(this.detalhesUltimaConexao);
       }
 
-      if (resLogin.statusCode < 200 || resLogin.statusCode >= 300) {
+      // No qBittorrent, tanto 200 OK (com "Ok.") quanto 204 No Content significam autenticação bem sucedida!
+      const isLoginOk = resLogin.statusCode === 200 || resLogin.statusCode === 204;
+
+      if (!isLoginOk && resLogin.statusCode !== 403) {
         this.conectado = false;
         this.cookieAutenticacao = null;
         this.infoConexao = null;
-        this.detalhesUltimaConexao = `Resposta inesperada do servidor (HTTP ${resLogin.statusCode}) em ${urlBase}`;
+        this.detalhesUltimaConexao = `Resposta inesperada do qBittorrent (HTTP ${resLogin.statusCode}) em ${urlBase}`;
         throw new Error(this.detalhesUltimaConexao);
       }
 
-      // Extrai o cookie da sessão
+      // 2. Extrai e armazena os cookies retornados (ex: QBT_SID_<port>=... ou SID=...)
       const setCookieHeader = resLogin.headers['set-cookie'];
       if (setCookieHeader) {
-        const rawCookies = Array.isArray(setCookieHeader) ? setCookieHeader.join('; ') : setCookieHeader;
-        const matchSid = rawCookies.match(/SID=[^;]+/);
-        if (matchSid) {
-          this.cookieAutenticacao = matchSid[0];
-        } else {
-          this.cookieAutenticacao = rawCookies.split(';')[0];
-        }
+        const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+        this.cookieAutenticacao = cookies.map((c) => c.split(';')[0].trim()).join('; ');
       }
 
-      // 2. Consulta a versão do qBittorrent e da Web API para validar a sessão
-      let appVersion = 'Desconhecida';
-      let webApiVersion = 'Desconhecida';
+      // 3. Validação do Handshake consultando a versão do app e da Web API
+      let appVersion = 'v5.x';
+      let webApiVersion = 'v2.x';
 
       try {
         const [resAppVer, resApiVer] = await Promise.all([
           this.fazerRequisicao({
             url: `${urlBase}/api/v2/app/version`,
             method: 'GET',
-            timeoutMs: 3000,
+            timeoutMs: 4000,
           }),
           this.fazerRequisicao({
             url: `${urlBase}/api/v2/app/webapiVersion`,
             method: 'GET',
-            timeoutMs: 3000,
+            timeoutMs: 4000,
           }),
         ]);
 
@@ -150,7 +154,7 @@ export class QBittorrentClient implements TorrentClient {
           webApiVersion = resApiVer.bodyText.trim();
         }
       } catch {
-        // Se falhar ao buscar versões secundárias, mas o login passou, mantém conectado
+        // Se a chamada de versão falhar mas o login foi 204/200, mantém a sessão
       }
 
       this.conectado = true;
@@ -191,10 +195,7 @@ export class QBittorrentClient implements TorrentClient {
   async desconectar(): Promise<void> {
     if (!this.conectado) return;
     try {
-      const protocolo = this.config.useHttps ? 'https' : 'http';
-      const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const urlBase = `${protocolo}://${hostLimpo}:${this.config.port}`;
-
+      const urlBase = this.obterUrlBase();
       await this.fazerRequisicao({
         url: `${urlBase}/api/v2/auth/logout`,
         method: 'POST',
@@ -213,19 +214,27 @@ export class QBittorrentClient implements TorrentClient {
    */
   async listarTorrents(): Promise<Torrent[]> {
     if (!this.conectado) {
-      return [];
+      const ok = await this.conectar().catch(() => false);
+      if (!ok) return [];
     }
 
     try {
-      const protocolo = this.config.useHttps ? 'https' : 'http';
-      const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const url = `${protocolo}://${hostLimpo}:${this.config.port}/api/v2/torrents/info`;
-
+      const urlBase = this.obterUrlBase();
       const response = await this.fazerRequisicao({
-        url,
+        url: `${urlBase}/api/v2/torrents/info`,
         method: 'GET',
         timeoutMs: 8000,
       });
+
+      // Se a sessão expirou no qBittorrent (HTTP 403 Forbidden), tenta renovar
+      if (response.statusCode === 403 || response.statusCode === 401) {
+        this.conectado = false;
+        const reconnected = await this.conectar().catch(() => false);
+        if (reconnected) {
+          return this.listarTorrents();
+        }
+        throw new Error('Sessão expirada no qBittorrent.');
+      }
 
       if (response.statusCode !== 200) {
         throw new Error(`Falha ao obter lista de torrents (HTTP ${response.statusCode})`);
@@ -260,19 +269,23 @@ export class QBittorrentClient implements TorrentClient {
    */
   async listarArquivos(torrentHash: string): Promise<TorrentFile[]> {
     if (!this.conectado) {
-      return [];
+      const ok = await this.conectar().catch(() => false);
+      if (!ok) return [];
     }
 
     try {
-      const protocolo = this.config.useHttps ? 'https' : 'http';
-      const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const url = `${protocolo}://${hostLimpo}:${this.config.port}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`;
-
+      const urlBase = this.obterUrlBase();
       const response = await this.fazerRequisicao({
-        url,
+        url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
         timeoutMs: 10000,
       });
+
+      if (response.statusCode === 403 || response.statusCode === 401) {
+        this.conectado = false;
+        await this.conectar().catch(() => {});
+        return this.listarArquivos(torrentHash);
+      }
 
       if (response.statusCode !== 200) {
         throw new Error(`Falha ao obter arquivos do torrent (HTTP ${response.statusCode})`);
@@ -307,17 +320,14 @@ export class QBittorrentClient implements TorrentClient {
     }
 
     try {
-      const protocolo = this.config.useHttps ? 'https' : 'http';
-      const hostLimpo = this.config.host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const url = `${protocolo}://${hostLimpo}:${this.config.port}/api/v2/torrents/filePrio`;
-
+      const urlBase = this.obterUrlBase();
       const params = new URLSearchParams();
       params.append('hash', torrentHash);
       params.append('id', fileIndices.join('|'));
       params.append('priority', prioridade.toString());
 
       const response = await this.fazerRequisicao({
-        url,
+        url: `${urlBase}/api/v2/torrents/filePrio`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -333,7 +343,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Utilitário HTTP/HTTPS robusto com suporte a cookies, timeout e SSL
+   * Utilitário HTTP/HTTPS com envio de headers de validação de Host e CSRF
    */
   private fazerRequisicao(opcoes: {
     url: string;
@@ -347,12 +357,22 @@ export class QBittorrentClient implements TorrentClient {
       const isHttps = parsedUrl.protocol === 'https:';
       const requestModule = isHttps ? https : http;
 
+      const origin = `${parsedUrl.protocol}//${parsedUrl.host}`;
       const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TorrentManager/1.0',
+        'Accept': '*/*',
+        'Origin': origin,
+        'Referer': `${origin}/`,
+        'Host': parsedUrl.host,
         ...(opcoes.headers || {}),
       };
 
       if (this.cookieAutenticacao) {
         headers['Cookie'] = this.cookieAutenticacao;
+      }
+
+      if (opcoes.body && !headers['Content-Length']) {
+        headers['Content-Length'] = Buffer.byteLength(opcoes.body).toString();
       }
 
       const reqOptions: http.RequestOptions = {
@@ -363,7 +383,7 @@ export class QBittorrentClient implements TorrentClient {
         method: opcoes.method,
         headers,
         timeout: opcoes.timeoutMs || 5000,
-        ...(isHttps ? { rejectUnauthorized: false } : {}), // Suporte a certificados autoassinados em redes locais
+        ...(isHttps ? { rejectUnauthorized: false } : {}),
       };
 
       const req = requestModule.request(reqOptions, (res) => {

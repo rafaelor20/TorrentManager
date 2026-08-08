@@ -16,10 +16,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     host: '0.0.0.0',
   },
   qbittorrent: {
-    host: '127.0.0.1',
-    port: 8080,
+    host: 'localhost',
+    port: 8877,
     username: 'admin',
-    password: '',
+    password: 'Ozzy261220',
     useHttps: false,
     timeoutMs: 5000,
   },
