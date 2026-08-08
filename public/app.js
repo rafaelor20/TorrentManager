@@ -1,4 +1,4 @@
-// Frontend do TorrentManager — Etapas 1 a 6 (Pesquisa Instantânea)
+// Frontend do TorrentManager — Etapas 1 a 8 (Seleção em Massa)
 document.addEventListener('DOMContentLoaded', async () => {
   // Elementos da interface
   const systemStatusBadge = document.getElementById('systemStatusBadge');
@@ -24,12 +24,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statPausedTorrents = document.getElementById('statPausedTorrents');
   const statTotalSize = document.getElementById('statTotalSize');
 
-  // Elementos da seção de arquivos (Etapa 5) e Pesquisa (Etapa 6)
+  // Elementos da seção de arquivos (Etapas 5, 6, 7 e 8)
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const selectedTorrentName = document.getElementById('selectedTorrentName');
   const selectedTorrentMeta = document.getElementById('selectedTorrentMeta');
   const selectedTorrentStatus = document.getElementById('selectedTorrentStatus');
+  const filesSelectionBadge = document.getElementById('filesSelectionBadge');
   const filesCountText = document.getElementById('filesCountText');
+  const selectionSummaryCount = document.getElementById('selectionSummaryCount');
+  const selectionSummarySize = document.getElementById('selectionSummarySize');
   const filesHashTag = document.getElementById('filesHashTag');
   const filesTableBody = document.getElementById('filesTableBody');
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
@@ -38,6 +41,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const inputSearchFiles = document.getElementById('inputSearchFiles');
   const btnClearSearch = document.getElementById('btnClearSearch');
   const searchResultCount = document.getElementById('searchResultCount');
+
+  // Ações em massa (Etapa 8)
+  const btnSelectAll = document.getElementById('btnSelectAll');
+  const btnDeselectAll = document.getElementById('btnDeselectAll');
+  const btnInvertSelection = document.getElementById('btnInvertSelection');
 
   // Formulário de conexão
   const formConnection = document.getElementById('formConnection');
@@ -70,9 +78,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toastMessage = document.getElementById('toastMessage');
   const toastCloseBtn = document.getElementById('toastCloseBtn');
 
-  // Estado em memória
+  // Estado da aplicação em memória
   let torrentSelecionadoAtual = null;
-  let todosArquivosDoTorrent = []; // Cache em memória dos arquivos do torrent selecionado
+  let todosArquivosDoTorrent = []; // Lista completa de arquivos do torrent ativo
+  let arquivosSelecionadosIndices = new Set(); // Conjunto dos índices (index) dos arquivos marcados
 
   // Formata bytes para exibição legível
   function formatarTamanho(bytes) {
@@ -152,13 +161,168 @@ document.addEventListener('DOMContentLoaded', async () => {
     feedbackIcon.textContent = tipo === 'success' ? '✓' : tipo === 'error' ? '✕' : '⚡';
   }
 
+  // Retorna os arquivos que estão visíveis no momento (respeitando o filtro de busca da Etapa 6)
+  function obterArquivosVisiveis() {
+    const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
+    if (!termo || !todosArquivosDoTorrent) {
+      return todosArquivosDoTorrent || [];
+    }
+    return todosArquivosDoTorrent.filter((f) => {
+      const nomeLower = (f.name || '').toLowerCase();
+      const pathLower = (f.path || '').toLowerCase();
+      return nomeLower.includes(termo) || pathLower.includes(termo);
+    });
+  }
+
+  // ==========================================
+  // ETAPA 7: SELEÇÃO INDIVIDUAL DE ARQUIVOS
+  // ==========================================
+  function atualizarResumoSelecao() {
+    const totalArquivos = todosArquivosDoTorrent.length;
+    const totalSelecionados = arquivosSelecionadosIndices.size;
+
+    // Calcula a soma do tamanho dos arquivos selecionados
+    let bytesSelecionados = 0;
+    todosArquivosDoTorrent.forEach((f) => {
+      if (arquivosSelecionadosIndices.has(f.index)) {
+        bytesSelecionados += f.size || 0;
+      }
+    });
+
+    if (filesSelectionBadge) {
+      filesSelectionBadge.textContent = `${totalSelecionados.toLocaleString('pt-BR')} marcados`;
+    }
+    if (selectionSummaryCount) {
+      selectionSummaryCount.textContent = `${totalSelecionados.toLocaleString('pt-BR')} de ${totalArquivos.toLocaleString('pt-BR')} selecionados`;
+    }
+    if (selectionSummarySize) {
+      selectionSummarySize.textContent = `(${formatarTamanho(bytesSelecionados)})`;
+    }
+  }
+
+  function alternarSelecaoArquivo(index, forcarEstado = null) {
+    const isMarcado = forcarEstado !== null
+      ? forcarEstado
+      : !arquivosSelecionadosIndices.has(index);
+
+    if (isMarcado) {
+      arquivosSelecionadosIndices.add(index);
+    } else {
+      arquivosSelecionadosIndices.delete(index);
+    }
+
+    // Atualiza visualmente a linha se estiver renderizada no DOM
+    const tr = document.querySelector(`.torrent-file-row[data-index="${index}"]`);
+    if (tr) {
+      tr.classList.toggle('checked', isMarcado);
+      const checkbox = tr.querySelector('.file-check-input');
+      if (checkbox) checkbox.checked = isMarcado;
+    }
+
+    atualizarResumoSelecao();
+  }
+
+  // ==========================================
+  // ETAPA 8: AÇÕES DE SELEÇÃO EM MASSA
+  // ==========================================
+  // 1. Marcar Todos (Aplica apenas aos arquivos visíveis)
+  btnSelectAll?.addEventListener('click', () => {
+    const visiveis = obterArquivosVisiveis();
+    if (visiveis.length === 0) return;
+
+    visiveis.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      arquivosSelecionadosIndices.add(fileIndex);
+
+      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
+      if (tr) {
+        tr.classList.add('checked');
+        const checkbox = tr.querySelector('.file-check-input');
+        if (checkbox) checkbox.checked = true;
+      }
+    });
+
+    atualizarResumoSelecao();
+    const termo = (inputSearchFiles?.value || '').trim();
+    mostrarToast(
+      'Seleção em Massa',
+      termo
+        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis da busca foram marcados.`
+        : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram marcados.`,
+      'success'
+    );
+  });
+
+  // 2. Desmarcar Todos (Aplica apenas aos arquivos visíveis)
+  btnDeselectAll?.addEventListener('click', () => {
+    const visiveis = obterArquivosVisiveis();
+    if (visiveis.length === 0) return;
+
+    visiveis.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      arquivosSelecionadosIndices.delete(fileIndex);
+
+      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
+      if (tr) {
+        tr.classList.remove('checked');
+        const checkbox = tr.querySelector('.file-check-input');
+        if (checkbox) checkbox.checked = false;
+      }
+    });
+
+    atualizarResumoSelecao();
+    const termo = (inputSearchFiles?.value || '').trim();
+    mostrarToast(
+      'Seleção em Massa',
+      termo
+        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis da busca foram desmarcados.`
+        : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram desmarcados.`,
+      'info'
+    );
+  });
+
+  // 3. Inverter Seleção (Aplica apenas aos arquivos visíveis)
+  btnInvertSelection?.addEventListener('click', () => {
+    const visiveis = obterArquivosVisiveis();
+    if (visiveis.length === 0) return;
+
+    let totalInvertidos = 0;
+    visiveis.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      const novoEstado = !arquivosSelecionadosIndices.has(fileIndex);
+
+      if (novoEstado) {
+        arquivosSelecionadosIndices.add(fileIndex);
+      } else {
+        arquivosSelecionadosIndices.delete(fileIndex);
+      }
+      totalInvertidos++;
+
+      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
+      if (tr) {
+        tr.classList.toggle('checked', novoEstado);
+        const checkbox = tr.querySelector('.file-check-input');
+        if (checkbox) checkbox.checked = novoEstado;
+      }
+    });
+
+    atualizarResumoSelecao();
+    const termo = (inputSearchFiles?.value || '').trim();
+    mostrarToast(
+      'Seleção Invertida',
+      termo
+        ? `Seleção invertida para ${totalInvertidos.toLocaleString('pt-BR')} arquivos visíveis.`
+        : `Seleção invertida para todos os ${totalInvertidos.toLocaleString('pt-BR')} arquivos.`,
+      'info'
+    );
+  });
+
   // ==========================================
   // ETAPA 6: PESQUISA INSTANTÂNEA
   // ==========================================
   function filtrarArquivosInstantaneamente() {
     const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
 
-    // Alterna visibilidade do botão limpar busca
     if (btnClearSearch) {
       btnClearSearch.style.display = termo.length > 0 ? 'flex' : 'none';
     }
@@ -167,7 +331,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Filtra ignorando maiúsculas/minúsculas e buscando em qualquer parte do nome ou caminho
     const arquivosFiltrados = termo === ''
       ? todosArquivosDoTorrent
       : todosArquivosDoTorrent.filter((f) => {
@@ -179,17 +342,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderizarTabelaArquivos(arquivosFiltrados, termo);
   }
 
-  // Evento em tempo real: pesquisa instantânea enquanto digita
   inputSearchFiles?.addEventListener('input', filtrarArquivosInstantaneamente);
 
-  // Limpar pesquisa
   btnClearSearch?.addEventListener('click', () => {
     inputSearchFiles.value = '';
     filtrarArquivosInstantaneamente();
     inputSearchFiles.focus();
   });
 
-  // Atalho: tecla Escape limpa a pesquisa
   inputSearchFiles?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       inputSearchFiles.value = '';
@@ -197,14 +357,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Renderiza as linhas da tabela de arquivos com alta performance
+  // Renderiza as linhas da tabela de arquivos com checkboxes da Etapa 7
   function renderizarTabelaArquivos(arquivos, termoBusca = '') {
     const totalOriginal = todosArquivosDoTorrent.length;
     const totalFiltrado = arquivos.length;
 
     if (termoBusca !== '') {
       searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
-      filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos correspondentes à busca "${termoBusca}"`;
+      filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos para "${termoBusca}"`;
     } else {
       searchResultCount.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos disponíveis`;
       filesCountText.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos carregados`;
@@ -213,24 +373,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (totalFiltrado === 0) {
       filesTableBody.innerHTML = `
         <tr class="empty-state-row">
-          <td colspan="6">
+          <td colspan="7">
             <div class="empty-state">
               <div class="empty-icon">🔍</div>
               <h4>Nenhum arquivo encontrado</h4>
-              <p>Nenhum arquivo corresponde ao termo <strong>"${termoBusca}"</strong>. Tente outro nome ou limpe a busca.</p>
+              <p>Nenhum arquivo corresponde à busca <strong>"${termoBusca}"</strong>.</p>
             </div>
           </td>
         </tr>
       `;
+      atualizarResumoSelecao();
       return;
     }
 
     const fragment = document.createDocumentFragment();
 
     arquivos.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      const isSelected = arquivosSelecionadosIndices.has(fileIndex);
+
       const tr = document.createElement('tr');
-      tr.className = 'torrent-file-row';
-      tr.dataset.index = f.index;
+      tr.className = `torrent-file-row ${isSelected ? 'checked' : ''}`;
+      tr.dataset.index = fileIndex;
 
       const prioInfo = formatarPrioridade(f.priority);
       const percentualNum = typeof f.progress === 'number'
@@ -243,7 +407,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const caminhoArquivo = f.path || f.name;
 
       tr.innerHTML = `
-        <td class="cell-file-index">${f.index !== undefined ? f.index : idx}</td>
+        <td class="cell-file-check">
+          <label class="file-check-label" title="Marcar ou desmarcar arquivo">
+            <input type="checkbox" class="file-check-input" data-index="${fileIndex}" ${isSelected ? 'checked' : ''}>
+            <span class="file-custom-check"></span>
+          </label>
+        </td>
+        <td class="cell-file-index">${fileIndex}</td>
         <td class="cell-file-name">
           <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
         </td>
@@ -271,11 +441,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
       `;
 
+      // Evento de seleção individual (Etapa 7)
+      const checkbox = tr.querySelector('.file-check-input');
+      checkbox?.addEventListener('change', (e) => {
+        e.stopPropagation();
+        alternarSelecaoArquivo(fileIndex, checkbox.checked);
+      });
+
+      // Clique na linha do arquivo também alterna a seleção
+      tr.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.closest('label')) return;
+        alternarSelecaoArquivo(fileIndex);
+      });
+
       fragment.appendChild(tr);
     });
 
     filesTableBody.innerHTML = '';
     filesTableBody.appendChild(fragment);
+    atualizarResumoSelecao();
   }
 
   // ==========================================
@@ -289,7 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       r.classList.toggle('selected', r.dataset.hash === torrent.hash);
     });
 
-    // Exibe a seção de arquivos e reseta o input de pesquisa
+    // Exibe a seção de arquivos e limpa a pesquisa
     torrentFilesSection.style.display = 'flex';
     selectedTorrentName.textContent = torrent.name;
     selectedTorrentMeta.textContent = `Tamanho total: ${formatarTamanho(torrent.size)}`;
@@ -310,7 +494,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Estado de carregamento na tabela
     filesTableBody.innerHTML = `
       <tr class="empty-state-row">
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-state">
             <div class="empty-icon">⏳</div>
             <h4>Carregando arquivos...</h4>
@@ -330,22 +514,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (res.ok && data.sucesso) {
         todosArquivosDoTorrent = data.files || [];
         
+        // Inicializa o estado de seleção individual (Etapa 7):
+        // Arquivos com prioridade > 0 começam marcados; prioridade 0 (não baixar) começam desmarcados
+        arquivosSelecionadosIndices = new Set();
+        todosArquivosDoTorrent.forEach((f, idx) => {
+          const fileIndex = f.index !== undefined ? f.index : idx;
+          if (f.priority !== 0) {
+            arquivosSelecionadosIndices.add(fileIndex);
+          }
+        });
+
         selectedTorrentMeta.textContent = `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
 
         renderizarTabelaArquivos(todosArquivosDoTorrent, '');
 
         mostrarToast(
           'Arquivos Carregados',
-          `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso de "${torrent.name}".`,
+          `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso.`,
           'success'
         );
       } else {
         todosArquivosDoTorrent = [];
+        arquivosSelecionadosIndices.clear();
         filesCountText.textContent = 'Erro ao carregar arquivos';
         searchResultCount.textContent = '0 arquivos';
         filesTableBody.innerHTML = `
           <tr class="empty-state-row">
-            <td colspan="6">
+            <td colspan="7">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
                 <h4>Falha ao carregar arquivos</h4>
@@ -354,15 +549,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             </td>
           </tr>
         `;
+        atualizarResumoSelecao();
         mostrarToast('Erro', data.erro || 'Falha ao carregar arquivos do torrent.', 'error');
       }
     } catch (err) {
       todosArquivosDoTorrent = [];
+      arquivosSelecionadosIndices.clear();
       filesCountText.textContent = 'Erro de comunicação';
       searchResultCount.textContent = 'Erro';
       filesTableBody.innerHTML = `
         <tr class="empty-state-row">
-          <td colspan="6">
+          <td colspan="7">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
               <h4>Erro de rede</h4>
@@ -371,6 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </td>
         </tr>
       `;
+      atualizarResumoSelecao();
       mostrarToast('Erro de Rede', err.message, 'error');
     }
   }
@@ -380,6 +578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     torrentFilesSection.style.display = 'none';
     torrentSelecionadoAtual = null;
     todosArquivosDoTorrent = [];
+    arquivosSelecionadosIndices.clear();
     document.querySelectorAll('.torrent-row').forEach((r) => r.classList.remove('selected'));
   });
 
@@ -756,6 +955,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         torrentFilesSection.style.display = 'none';
         torrentSelecionadoAtual = null;
         todosArquivosDoTorrent = [];
+        arquivosSelecionadosIndices.clear();
         await carregarDados();
         await carregarTorrents();
       }
