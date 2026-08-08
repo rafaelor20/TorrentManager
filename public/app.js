@@ -1,4 +1,4 @@
-// Frontend do TorrentManager — Etapa 4 (Listagem de Torrents)
+// Frontend do TorrentManager — Etapas 1 a 5 (Visualização dos Arquivos)
 document.addEventListener('DOMContentLoaded', async () => {
   // Elementos da interface
   const systemStatusBadge = document.getElementById('systemStatusBadge');
@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statDownloadingTorrents = document.getElementById('statDownloadingTorrents');
   const statPausedTorrents = document.getElementById('statPausedTorrents');
   const statTotalSize = document.getElementById('statTotalSize');
+
+  // Elementos da seção de arquivos (Etapa 5)
+  const torrentFilesSection = document.getElementById('torrentFilesSection');
+  const selectedTorrentName = document.getElementById('selectedTorrentName');
+  const selectedTorrentMeta = document.getElementById('selectedTorrentMeta');
+  const selectedTorrentStatus = document.getElementById('selectedTorrentStatus');
+  const filesCountText = document.getElementById('filesCountText');
+  const filesHashTag = document.getElementById('filesHashTag');
+  const filesTableBody = document.getElementById('filesTableBody');
+  const btnFecharArquivos = document.getElementById('btnFecharArquivos');
 
   // Formulário de conexão
   const formConnection = document.getElementById('formConnection');
@@ -55,6 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toastMessage = document.getElementById('toastMessage');
   const toastCloseBtn = document.getElementById('toastCloseBtn');
 
+  // Estado da aplicação
+  let torrentSelecionadoAtual = null;
+
   // Formata bytes para exibição legível
   function formatarTamanho(bytes) {
     if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
@@ -70,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${formatarTamanho(bytesPorSec)}/s`;
   }
 
-  // Traduz o status do torrent para exibição amigável
+  // Traduz o status do torrent
   function mapearStatusLegivel(status, rawState) {
     switch (status) {
       case 'downloading':
@@ -89,6 +102,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { label: 'Erro', classe: 'error' };
       default:
         return { label: rawState || 'Desconhecido', classe: 'paused' };
+    }
+  }
+
+  // Traduz a prioridade do arquivo
+  function formatarPrioridade(prio) {
+    switch (Number(prio)) {
+      case 0:
+        return { label: 'Não baixar / Ignorado', classe: 'prio-skip' };
+      case 1:
+        return { label: 'Normal', classe: 'prio-normal' };
+      case 6:
+        return { label: 'Alta', classe: 'prio-high' };
+      case 7:
+        return { label: 'Máxima', classe: 'prio-maximal' };
+      default:
+        return { label: `Prioridade ${prio}`, classe: 'prio-normal' };
     }
   }
 
@@ -116,6 +145,169 @@ document.addEventListener('DOMContentLoaded', async () => {
     feedbackDetail.textContent = detalhe;
     feedbackIcon.textContent = tipo === 'success' ? '✓' : tipo === 'error' ? '✕' : '⚡';
   }
+
+  // ==========================================
+  // ETAPA 5: VISUALIZAÇÃO DOS ARQUIVOS
+  // ==========================================
+  async function selecionarTorrent(torrent) {
+    torrentSelecionadoAtual = torrent;
+
+    // Destaca a linha selecionada na tabela de torrents
+    document.querySelectorAll('.torrent-row').forEach((r) => {
+      r.classList.toggle('selected', r.dataset.hash === torrent.hash);
+    });
+
+    // Exibe a seção de arquivos
+    torrentFilesSection.style.display = 'flex';
+    selectedTorrentName.textContent = torrent.name;
+    selectedTorrentMeta.textContent = `Tamanho total: ${formatarTamanho(torrent.size)}`;
+    
+    const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
+    selectedTorrentStatus.textContent = statusInfo.label;
+    filesHashTag.textContent = `Hash: ${torrent.hash}`;
+    filesCountText.textContent = 'Carregando arquivos do torrent...';
+
+    // Estado inicial de carregamento da tabela de arquivos
+    filesTableBody.innerHTML = `
+      <tr class="empty-state-row">
+        <td colspan="6">
+          <div class="empty-state">
+            <div class="empty-icon">⏳</div>
+            <h4>Carregando arquivos...</h4>
+            <p>Buscando todos os arquivos de "${torrent.name}"...</p>
+          </div>
+        </td>
+      </tr>
+    `;
+
+    // Rola suavemente até a seção de arquivos
+    torrentFilesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    try {
+      const res = await fetch(`/api/torrents/${encodeURIComponent(torrent.hash)}/files`);
+      const data = await res.json();
+
+      if (res.ok && data.sucesso) {
+        const files = data.files || [];
+        
+        filesCountText.textContent = files.length === 1
+          ? '1 arquivo encontrado'
+          : `${files.length.toLocaleString('pt-BR')} arquivos carregados`;
+
+        selectedTorrentMeta.textContent = `${files.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
+
+        if (files.length === 0) {
+          filesTableBody.innerHTML = `
+            <tr class="empty-state-row">
+              <td colspan="6">
+                <div class="empty-state">
+                  <div class="empty-icon">📄</div>
+                  <h4>Nenhum arquivo encontrado</h4>
+                  <p>Este torrent ainda não possui arquivos listados ou os metadados estão sendo baixados.</p>
+                </div>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        // Renderização eficiente com DocumentFragment
+        const fragment = document.createDocumentFragment();
+
+        files.forEach((f, idx) => {
+          const tr = document.createElement('tr');
+          tr.className = 'torrent-file-row';
+          tr.dataset.index = f.index;
+
+          const prioInfo = formatarPrioridade(f.priority);
+          const percentualNum = typeof f.progress === 'number'
+            ? (f.progress > 1 ? f.progress : f.progress * 100)
+            : 0;
+          const percentualStr = percentualNum.toFixed(1) + '%';
+          const isComplete = percentualNum >= 100;
+
+          // Extrai o nome do arquivo a partir do caminho se necessário
+          const nomeArquivo = f.name || f.path.split('/').pop() || f.path;
+          const caminhoArquivo = f.path || f.name;
+
+          tr.innerHTML = `
+            <td class="cell-file-index">${f.index !== undefined ? f.index : idx}</td>
+            <td class="cell-file-name">
+              <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
+            </td>
+            <td class="cell-file-path">
+              <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
+            </td>
+            <td class="cell-file-size">
+              ${formatarTamanho(f.size)}
+            </td>
+            <td class="cell-file-prio">
+              <span class="prio-tag ${prioInfo.classe}">
+                ${prioInfo.label}
+              </span>
+            </td>
+            <td class="cell-file-progress">
+              <div class="progress-wrapper">
+                <div class="progress-label-row">
+                  <span>${percentualStr}</span>
+                  <span>${isComplete ? '100%' : ''}</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
+                </div>
+              </div>
+            </td>
+          `;
+
+          fragment.appendChild(tr);
+        });
+
+        filesTableBody.innerHTML = '';
+        filesTableBody.appendChild(fragment);
+
+        mostrarToast(
+          'Arquivos Carregados',
+          `${files.length.toLocaleString('pt-BR')} arquivos carregados com sucesso de "${torrent.name}".`,
+          'success'
+        );
+      } else {
+        filesCountText.textContent = 'Erro ao carregar arquivos';
+        filesTableBody.innerHTML = `
+          <tr class="empty-state-row">
+            <td colspan="6">
+              <div class="empty-state">
+                <div class="empty-icon">⚠️</div>
+                <h4>Falha ao carregar arquivos</h4>
+                <p>${data.erro || 'Não foi possível carregar os arquivos deste torrent.'}</p>
+              </div>
+            </td>
+          </tr>
+        `;
+        mostrarToast('Erro', data.erro || 'Falha ao carregar arquivos do torrent.', 'error');
+      }
+    } catch (err) {
+      filesCountText.textContent = 'Erro de comunicação';
+      filesTableBody.innerHTML = `
+        <tr class="empty-state-row">
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="empty-icon">✕</div>
+              <h4>Erro de rede</h4>
+              <p>${err.message}</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      mostrarToast('Erro de Rede', err.message, 'error');
+    }
+  }
+
+  // Fechar visualização de arquivos
+  btnFecharArquivos?.addEventListener('click', () => {
+    torrentFilesSection.style.display = 'none';
+    torrentSelecionadoAtual = null;
+    document.querySelectorAll('.torrent-row').forEach((r) => r.classList.remove('selected'));
+  });
 
   // ==========================================
   // ETAPA 4: LISTAGEM DE TORRENTS
@@ -170,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (torrents.length === 0) {
           torrentsTableBody.innerHTML = `
             <tr class="empty-state-row">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="empty-state">
                   <div class="empty-icon">📂</div>
                   <h4>Nenhum torrent encontrado</h4>
@@ -195,8 +387,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               ? `<span class="speed-down">${dlSpeedStr}</span><span class="speed-up">${upSpeedStr}</span>`
               : '<span style="color: var(--text-muted);">—</span>';
 
+            const isSelected = torrentSelecionadoAtual && torrentSelecionadoAtual.hash === t.hash;
+
             return `
-              <tr class="torrent-row" data-hash="${t.hash}">
+              <tr class="torrent-row ${isSelected ? 'selected' : ''}" data-hash="${t.hash}">
+                <td class="cell-action">
+                  <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste torrent">
+                    <span>${isSelected ? '✓ Selecionado' : 'Ver Arquivos'}</span>
+                  </button>
+                </td>
                 <td class="cell-name">
                   <span class="torrent-name-text" title="${t.name}">${t.name}</span>
                   <span class="torrent-hash-sub">${t.hash ? t.hash.substring(0, 10) + '...' : ''}</span>
@@ -226,6 +425,12 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tr>
             `;
           }).join('');
+
+          // Adiciona listener de clique em cada linha / botão de seleção
+          torrents.forEach((t) => {
+            const row = document.querySelector(`.torrent-row[data-hash="${t.hash}"]`);
+            row?.addEventListener('click', () => selecionarTorrent(t));
+          });
         }
 
         if (isManual) {
@@ -235,7 +440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableCountText.textContent = 'Erro ao listar torrents';
         torrentsTableBody.innerHTML = `
           <tr class="empty-state-row">
-            <td colspan="5">
+            <td colspan="6">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
                 <h4>Falha ao carregar torrents</h4>
@@ -252,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tableCountText.textContent = 'Erro de comunicação';
       torrentsTableBody.innerHTML = `
         <tr class="empty-state-row">
-          <td colspan="5">
+          <td colspan="6">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
               <h4>Erro de rede</h4>
@@ -474,6 +679,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await fetch('/api/client/disconnect', { method: 'POST' });
       if (res.ok) {
         mostrarToast('Desconectado', 'Sessão encerrada com o cliente.', 'info');
+        torrentFilesSection.style.display = 'none';
+        torrentSelecionadoAtual = null;
         await carregarDados();
         await carregarTorrents();
       }

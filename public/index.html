@@ -52,12 +52,12 @@
 
     <!-- Conteúdo Principal -->
     <main class="main-content">
-      <!-- Seção Principal: Lista de Torrents (Etapa 4) -->
+      <!-- Seção: Lista de Torrents (Etapa 4) -->
       <section class="torrents-section">
         <div class="section-header-bar">
           <div>
             <h2 class="section-main-title">Gerenciador de Torrents</h2>
-            <p class="section-subtitle">Exibindo torrents gerenciados pelo <code class="code-tag">TorrentClient</code></p>
+            <p class="section-subtitle">Clique em um torrent para carregar e visualizar seus arquivos</p>
           </div>
 
           <div class="section-actions">
@@ -105,6 +105,7 @@
             <table class="torrent-table" id="torrentTable">
               <thead>
                 <tr>
+                  <th class="th-action">Seleção</th>
                   <th class="th-name">Nome</th>
                   <th class="th-status">Status</th>
                   <th class="th-progress">Progresso</th>
@@ -113,13 +114,73 @@
                 </tr>
               </thead>
               <tbody id="torrentsTableBody">
-                <!-- Linhas inseridas dinamicamente via app.js -->
                 <tr class="empty-state-row">
-                  <td colspan="5">
+                  <td colspan="6">
                     <div class="empty-state">
                       <div class="empty-icon">⏳</div>
                       <h4>Carregando torrents...</h4>
                       <p>Consultando a camada de abstração do cliente BitTorrent...</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seção: Visualização dos Arquivos (Etapa 5) -->
+      <section class="torrent-files-section" id="torrentFilesSection" style="display: none;">
+        <div class="section-header-bar">
+          <div class="selected-torrent-header">
+            <div class="files-header-icon">📁</div>
+            <div>
+              <div class="badge-row">
+                <span class="badge file-badge">Arquivos do Torrent</span>
+                <span class="selected-torrent-status" id="selectedTorrentStatus">Status</span>
+              </div>
+              <h3 class="files-torrent-title" id="selectedTorrentName">Nome do Torrent</h3>
+              <p class="files-torrent-meta" id="selectedTorrentMeta">0 arquivos • 0 B no total</p>
+            </div>
+          </div>
+
+          <div class="section-actions">
+            <button class="btn btn-secondary" id="btnFecharArquivos" title="Fechar visualização de arquivos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span>Fechar Arquivos</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabela de Arquivos do Torrent Selecionado -->
+        <div class="torrent-table-container glass-card files-card">
+          <div class="table-meta-bar">
+            <div class="table-count" id="filesCountText">Carregando arquivos do torrent...</div>
+            <div class="files-hash-tag" id="filesHashTag">Hash: —</div>
+          </div>
+
+          <div class="table-responsive files-scroll-area">
+            <table class="torrent-table files-table" id="filesTable">
+              <thead>
+                <tr>
+                  <th class="th-file-index">#</th>
+                  <th class="th-file-name">Nome do Arquivo</th>
+                  <th class="th-file-path">Caminho</th>
+                  <th class="th-file-size">Tamanho</th>
+                  <th class="th-file-prio">Prioridade Atual</th>
+                  <th class="th-file-progress">Progresso</th>
+                </tr>
+              </thead>
+              <tbody id="filesTableBody">
+                <tr class="empty-state-row">
+                  <td colspan="6">
+                    <div class="empty-state">
+                      <div class="empty-icon">⏳</div>
+                      <h4>Carregando arquivos...</h4>
+                      <p>Consultando a estrutura de arquivos no cliente BitTorrent...</p>
                     </div>
                   </td>
                 </tr>
@@ -291,9 +352,14 @@
             <span class="step-name">Listagem de Torrents</span>
             <span class="step-check">✓</span>
           </div>
-          <div class="step-pill next">
+          <div class="step-pill completed">
             <span class="step-num">5</span>
             <span class="step-name">Visualização dos Arquivos</span>
+            <span class="step-check">✓</span>
+          </div>
+          <div class="step-pill next">
+            <span class="step-num">6</span>
+            <span class="step-name">Pesquisa Instantânea</span>
             <span class="step-check">→</span>
           </div>
         </div>
