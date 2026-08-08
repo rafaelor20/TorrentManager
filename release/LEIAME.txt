@@ -1,0 +1,18 @@
+========================================================
+TORRENT MANAGER — EXECUTÁVEL WINDOWS STANDALONE (.EXE)
+========================================================
+
+COMO EXECUTAR NO WINDOWS:
+1. Dê um duplo clique em "iniciar.bat" ou execute "TorrentManager.exe".
+2. O servidor iniciará automaticamente na porta 3000.
+3. Seu navegador abrirá a interface web em: http://localhost:3000
+
+ARQUIVOS DO PACOTE PORTÁTIL:
+- TorrentManager.exe : Executável principal compilado para Windows x64.
+- iniciar.bat        : Script de inicialização rápida com abertura do navegador.
+- public/            : Arquivos da interface visual (HTML, CSS, JS).
+- data/config.json   : Persistência local de credenciais, host e porta.
+
+REQUISITOS:
+- Windows 10 ou Windows 11 (64-bit).
+- Não é necessário ter o Node.js instalado na máquina do usuário.

@@ -1,0 +1,15 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "qbittorrent": {
+    "host": "127.0.0.1",
+    "port": 8877,
+    "username": "admin",
+    "password": "Ozzy261220",
+    "useHttps": false,
+    "timeoutMs": 6000,
+    "refreshInterval": 60
+  }
+}

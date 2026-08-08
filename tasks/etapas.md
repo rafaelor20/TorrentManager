@@ -218,3 +218,15 @@ Critérios de aceitação:
 
 O projeto continua funcionando apenas com o qBittorrent.
 Adicionar um novo cliente exige apenas criar uma nova implementação da interface TorrentClient.
+
+Etapa 14 — Compilação para Windows (.exe)
+Prompt
+
+Implemente uma forma de compilar executável (.exe) standalone para Windows.
+
+Requisitos:
+- Gerar executável nativo Windows x64 (.exe) sem dependência de Node.js instalado na máquina do usuário final.
+- Script automatizado de compilação npm run build:exe / npm run build:win.
+- Empacotamento com esbuild e Node.js Single Executable Application (SEA) via postject.
+- Pacote de distribuição completo e portátil na pasta release/ (TorrentManager.exe, iniciar.bat, public/, data/config.json, LEIAME.txt).
+- Arquivo compactado release/TorrentManager-Windows-x64.zip pronto para download e extração.
