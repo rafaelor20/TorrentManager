@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     password: 'Ozzy261220',
     useHttps: false,
     timeoutMs: 5000,
+    refreshInterval: 10,
   },
 };
 
@@ -70,6 +71,7 @@ export class ConfigService {
     const qbUserEnv = process.env.QBIT_USER;
     const qbPassEnv = process.env.QBIT_PASSWORD;
     const qbHttpsEnv = process.env.QBIT_HTTPS !== undefined ? process.env.QBIT_HTTPS === 'true' : undefined;
+    const qbRefreshEnv = process.env.QBIT_REFRESH ? Number(process.env.QBIT_REFRESH) : undefined;
 
     const mergedConfig: AppConfig = {
       server: {
@@ -83,6 +85,7 @@ export class ConfigService {
         password: qbPassEnv ?? fileConfig.qbittorrent?.password ?? DEFAULT_CONFIG.qbittorrent.password,
         useHttps: qbHttpsEnv !== undefined ? qbHttpsEnv : (fileConfig.qbittorrent?.useHttps ?? DEFAULT_CONFIG.qbittorrent.useHttps),
         timeoutMs: fileConfig.qbittorrent?.timeoutMs ?? DEFAULT_CONFIG.qbittorrent.timeoutMs,
+        refreshInterval: qbRefreshEnv ?? fileConfig.qbittorrent?.refreshInterval ?? DEFAULT_CONFIG.qbittorrent.refreshInterval,
       },
     };
 

@@ -9,6 +9,7 @@
     "username": "admin",
     "password": "Ozzy261220",
     "useHttps": false,
-    "timeoutMs": 5000
+    "timeoutMs": 6000,
+    "refreshInterval": 60
   }
 }

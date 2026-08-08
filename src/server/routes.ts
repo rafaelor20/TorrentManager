@@ -27,6 +27,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         hasPassword: Boolean(configAtual.qbittorrent.password),
         useHttps: configAtual.qbittorrent.useHttps,
         timeoutMs: configAtual.qbittorrent.timeoutMs,
+        refreshInterval: configAtual.qbittorrent.refreshInterval ?? 10,
       },
       clientesSuportados: TorrentClientFactory.obterClientesSuportados(),
       timestamp: new Date().toISOString(),
@@ -47,6 +48,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
           hasPassword: Boolean(config.qbittorrent.password),
           useHttps: config.qbittorrent.useHttps,
           timeoutMs: config.qbittorrent.timeoutMs,
+          refreshInterval: config.qbittorrent.refreshInterval ?? 10,
         },
       },
     });
@@ -55,7 +57,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
   // Salvar configurações no arquivo data/config.json
   router.post('/config', (req: Request, res: Response) => {
     try {
-      const { host, port, username, password, useHttps, timeoutMs } = req.body || {};
+      const { host, port, username, password, useHttps, timeoutMs, refreshInterval } = req.body || {};
       
       const configAtual = ConfigService.carregar();
       const novoQbitConfig: Partial<TorrentClientConfig> = {
@@ -64,6 +66,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         username: typeof username === 'string' ? username : configAtual.qbittorrent.username,
         useHttps: typeof useHttps === 'boolean' ? useHttps : configAtual.qbittorrent.useHttps,
         timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : Number(timeoutMs) || configAtual.qbittorrent.timeoutMs,
+        refreshInterval: typeof refreshInterval === 'number' ? refreshInterval : Number(refreshInterval) || configAtual.qbittorrent.refreshInterval,
       };
 
       // Só substitui a senha se enviada uma nova
@@ -88,6 +91,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
           hasPassword: Boolean(salva.qbittorrent.password),
           useHttps: salva.qbittorrent.useHttps,
           timeoutMs: salva.qbittorrent.timeoutMs,
+          refreshInterval: salva.qbittorrent.refreshInterval,
         },
       });
     } catch (err: any) {
@@ -101,11 +105,11 @@ export function createRouter(torrentClient: TorrentClient): Router {
   // Conectar / Testar conexão com a Web API do qBittorrent
   router.post('/client/connect', async (req: Request, res: Response) => {
     try {
-      const { host, port, username, password, useHttps, timeoutMs, salvarConfig } = req.body || {};
+      const { host, port, username, password, useHttps, timeoutMs, refreshInterval, salvarConfig } = req.body || {};
 
       let overrideConfig: Partial<TorrentClientConfig> | undefined;
 
-      if (host || port || username !== undefined || password !== undefined || useHttps !== undefined) {
+      if (host || port || username !== undefined || password !== undefined || useHttps !== undefined || refreshInterval !== undefined) {
         const configAtual = ConfigService.carregar();
         overrideConfig = {
           host: host || configAtual.qbittorrent.host,
@@ -114,6 +118,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
           password: password !== undefined ? password : configAtual.qbittorrent.password,
           useHttps: useHttps !== undefined ? Boolean(useHttps) : configAtual.qbittorrent.useHttps,
           timeoutMs: timeoutMs ? Number(timeoutMs) : configAtual.qbittorrent.timeoutMs,
+          refreshInterval: refreshInterval ? Number(refreshInterval) : configAtual.qbittorrent.refreshInterval,
         };
 
         if (salvarConfig) {

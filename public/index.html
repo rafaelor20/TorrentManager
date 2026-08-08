@@ -37,8 +37,99 @@
           <span class="client-icon">⚡</span>
           <span id="activeClientName">qBittorrent</span>
         </div>
+        <button class="btn btn-secondary btn-header-config" id="btnAbrirConfigModal" title="Abrir tela de configurações da aplicação e do cliente BitTorrent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Configurações</span>
+        </button>
       </div>
     </header>
+
+    <!-- Modal de Configurações (Etapa 11) -->
+    <div id="modalConfiguracoes" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <div class="card-icon blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </div>
+            <div>
+              <h3>Tela de Configurações</h3>
+              <p class="modal-subtitle">Configurações persistidas permanentemente em <code>data/config.json</code></p>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="btnFecharModalConfig" title="Fechar">&times;</button>
+        </div>
+
+        <form id="formModalConfig" class="modal-form">
+          <div class="form-row form-row-split">
+            <div class="form-group">
+              <label for="inputModalHost">Endereço do qBittorrent (Host / IP):</label>
+              <input type="text" id="inputModalHost" class="form-input" placeholder="localhost ou 127.0.0.1" required>
+            </div>
+            <div class="form-group" style="max-width: 130px;">
+              <label for="inputModalPort">Porta:</label>
+              <input type="number" id="inputModalPort" class="form-input" placeholder="8877" required>
+            </div>
+          </div>
+
+          <div class="form-row form-row-split">
+            <div class="form-group">
+              <label for="inputModalUsername">Usuário:</label>
+              <input type="text" id="inputModalUsername" class="form-input" placeholder="admin" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="inputModalPassword">Senha:</label>
+              <input type="password" id="inputModalPassword" class="form-input" placeholder="••••••••" autocomplete="current-password">
+            </div>
+          </div>
+
+          <div class="form-row form-row-split">
+            <div class="form-group">
+              <label for="inputModalRefreshInterval">Intervalo de Atualização Automática:</label>
+              <select id="inputModalRefreshInterval" class="form-input form-select">
+                <option value="0">Desativado (Atualização apenas manual)</option>
+                <option value="5">A cada 5 segundos (Muito rápido)</option>
+                <option value="10" selected>A cada 10 segundos (Recomendado)</option>
+                <option value="30">A cada 30 segundos</option>
+                <option value="60">A cada 1 minuto (Econômico)</option>
+              </select>
+            </div>
+            <div class="form-group" style="max-width: 150px;">
+              <label for="inputModalTimeout">Timeout (ms):</label>
+              <input type="number" id="inputModalTimeout" class="form-input" placeholder="5000" min="1000" step="500">
+            </div>
+          </div>
+
+          <div class="form-row form-row-checkboxes">
+            <label class="checkbox-container">
+              <input type="checkbox" id="inputModalHttps">
+              <span class="custom-checkbox"></span>
+              <span>Conexão Segura com HTTPS (SSL/TLS)</span>
+            </label>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="btnModalRestaurar">
+              <span>Restaurar Padrões</span>
+            </button>
+            <div class="modal-footer-actions">
+              <button type="button" class="btn btn-secondary" id="btnModalTestar">
+                <span>Testar Conexão</span>
+              </button>
+              <button type="submit" class="btn btn-primary" id="btnModalSalvar">
+                <span>Salvar Configurações</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Notificação / Toast Flutuante -->
     <div id="toastNotification" class="toast-alert" style="display: none;">
@@ -209,6 +300,25 @@
             </button>
           </div>
 
+          <!-- Filtros por Prioridade (Etapa 10) -->
+          <div class="priority-filters-group">
+            <label class="filter-chip" title="Ocultar arquivos configurados como Não Baixar (prioridade 0)">
+              <input type="checkbox" id="filterHideIgnored" class="filter-chip-input">
+              <span class="filter-chip-btn">
+                <span class="chip-dot red"></span>
+                <span>Ocultar Ignorados</span>
+              </span>
+            </label>
+
+            <label class="filter-chip" title="Exibir apenas os arquivos atualmente selecionados para download">
+              <input type="checkbox" id="filterOnlySelected" class="filter-chip-input">
+              <span class="filter-chip-btn">
+                <span class="chip-dot cyan"></span>
+                <span>Apenas Selecionados</span>
+              </span>
+            </label>
+          </div>
+
           <div class="search-stats-badge" id="searchStatsBadge">
             <span class="search-badge-dot"></span>
             <span id="searchResultCount">Filtragem instantânea ativa</span>
@@ -295,6 +405,23 @@
               </div>
             </div>
 
+            <div class="form-row form-row-split">
+              <div class="form-group">
+                <label for="inputRefreshInterval">Intervalo de Atualização Automática:</label>
+                <select id="inputRefreshInterval" class="form-input form-select">
+                  <option value="0">Desativado (Manual apenas)</option>
+                  <option value="5">A cada 5 segundos</option>
+                  <option value="10" selected>A cada 10 segundos (Recomendado)</option>
+                  <option value="30">A cada 30 segundos</option>
+                  <option value="60">A cada 1 minuto</option>
+                </select>
+              </div>
+              <div class="form-group" style="max-width: 140px;">
+                <label for="inputTimeoutMs">Timeout (ms):</label>
+                <input type="number" id="inputTimeoutMs" class="form-input" placeholder="5000" min="1000" step="500">
+              </div>
+            </div>
+
             <div class="form-row form-row-checkboxes">
               <label class="checkbox-container">
                 <input type="checkbox" id="inputHttps">
@@ -365,6 +492,10 @@
               <div class="info-row">
                 <span class="info-title">Versão da Web API:</span>
                 <span class="info-data highlight" id="infoWebApiVersion">—</span>
+              </div>
+              <div class="info-row">
+                <span class="info-title">Auto-refresh Torrents:</span>
+                <span class="info-data" id="infoAutoRefreshStatus">A cada 10s</span>
               </div>
               <div class="info-row">
                 <span class="info-title">Sessão Cookie (SID):</span>
@@ -442,9 +573,19 @@
             <span class="step-name">Aplicação das Prioridades</span>
             <span class="step-check">✓</span>
           </div>
-          <div class="step-pill next">
+          <div class="step-pill completed">
             <span class="step-num">10</span>
             <span class="step-name">Filtro por Prioridade</span>
+            <span class="step-check">✓</span>
+          </div>
+          <div class="step-pill completed">
+            <span class="step-num">11</span>
+            <span class="step-name">Tela de Configurações</span>
+            <span class="step-check">✓</span>
+          </div>
+          <div class="step-pill next">
+            <span class="step-num">12</span>
+            <span class="step-name">Otimização de Desempenho</span>
             <span class="step-check">→</span>
           </div>
         </div>

@@ -50,12 +50,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnDeselectAll = document.getElementById('btnDeselectAll');
   const btnInvertSelection = document.getElementById('btnInvertSelection');
 
-  // Formulário de conexão
+  // Filtros por Prioridade (Etapa 10)
+  const filterHideIgnored = document.getElementById('filterHideIgnored');
+  const filterOnlySelected = document.getElementById('filterOnlySelected');
+
+  // Elementos do Modal de Configurações (Etapa 11)
+  const btnAbrirConfigModal = document.getElementById('btnAbrirConfigModal');
+  const modalConfiguracoes = document.getElementById('modalConfiguracoes');
+  const btnFecharModalConfig = document.getElementById('btnFecharModalConfig');
+  const formModalConfig = document.getElementById('formModalConfig');
+  const inputModalHost = document.getElementById('inputModalHost');
+  const inputModalPort = document.getElementById('inputModalPort');
+  const inputModalUsername = document.getElementById('inputModalUsername');
+  const inputModalPassword = document.getElementById('inputModalPassword');
+  const inputModalRefreshInterval = document.getElementById('inputModalRefreshInterval');
+  const inputModalTimeout = document.getElementById('inputModalTimeout');
+  const inputModalHttps = document.getElementById('inputModalHttps');
+  const btnModalRestaurar = document.getElementById('btnModalRestaurar');
+  const btnModalTestar = document.getElementById('btnModalTestar');
+  const btnModalSalvar = document.getElementById('btnModalSalvar');
+
+  // Formulário de conexão rápido
   const formConnection = document.getElementById('formConnection');
   const inputHost = document.getElementById('inputHost');
   const inputPort = document.getElementById('inputPort');
   const inputUsername = document.getElementById('inputUsername');
   const inputPassword = document.getElementById('inputPassword');
+  const inputRefreshInterval = document.getElementById('inputRefreshInterval');
+  const inputTimeoutMs = document.getElementById('inputTimeoutMs');
   const inputHttps = document.getElementById('inputHttps');
   const inputSaveConfig = document.getElementById('inputSaveConfig');
   const btnConectar = document.getElementById('btnConectar');
@@ -70,6 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const infoEndpoint = document.getElementById('infoEndpoint');
   const infoAppVersion = document.getElementById('infoAppVersion');
   const infoWebApiVersion = document.getElementById('infoWebApiVersion');
+  const infoAutoRefreshStatus = document.getElementById('infoAutoRefreshStatus');
   const infoCookieStatus = document.getElementById('infoCookieStatus');
   const btnTestarConexao = document.getElementById('btnTestarConexao');
   const btnDesconectar = document.getElementById('btnDesconectar');
@@ -164,19 +187,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     feedbackIcon.textContent = tipo === 'success' ? '✓' : tipo === 'error' ? '✕' : '⚡';
   }
 
-  // Retorna os arquivos que estão visíveis no momento (respeitando o filtro de busca da Etapa 6)
-  function obterArquivosVisiveis() {
-    const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
-    if (!termo || !todosArquivosDoTorrent) {
-      return todosArquivosDoTorrent || [];
-    }
-    return todosArquivosDoTorrent.filter((f) => {
-      const nomeLower = (f.name || '').toLowerCase();
-      const pathLower = (f.path || '').toLowerCase();
-      return nomeLower.includes(termo) || pathLower.includes(termo);
-    });
-  }
-
   // ==========================================
   // ETAPA 7: SELEÇÃO INDIVIDUAL DE ARQUIVOS
   // ==========================================
@@ -186,8 +196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Calcula a soma do tamanho dos arquivos selecionados
     let bytesSelecionados = 0;
-    todosArquivosDoTorrent.forEach((f) => {
-      if (arquivosSelecionadosIndices.has(f.index)) {
+    todosArquivosDoTorrent.forEach((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+      if (arquivosSelecionadosIndices.has(fileIndex)) {
         bytesSelecionados += f.size || 0;
       }
     });
@@ -228,7 +239,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================
   // ETAPA 8: AÇÕES DE SELEÇÃO EM MASSA
   // ==========================================
-  // 1. Marcar Todos (Aplica apenas aos arquivos visíveis)
   btnSelectAll?.addEventListener('click', () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
@@ -250,13 +260,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarToast(
       'Seleção em Massa',
       termo
-        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis da busca foram marcados.`
+        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis foram marcados.`
         : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram marcados.`,
       'success'
     );
   });
 
-  // 2. Desmarcar Todos (Aplica apenas aos arquivos visíveis)
   btnDeselectAll?.addEventListener('click', () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
@@ -278,13 +287,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarToast(
       'Seleção em Massa',
       termo
-        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis da busca foram desmarcados.`
+        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis foram desmarcados.`
         : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram desmarcados.`,
       'info'
     );
   });
 
-  // 3. Inverter Seleção (Aplica apenas aos arquivos visíveis)
   btnInvertSelection?.addEventListener('click', () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
@@ -321,10 +329,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================
-  // ETAPA 6: PESQUISA INSTANTÂNEA
+  // ETAPA 10: FILTROS COMBINÁVEIS POR PRIORIDADE & BUSCA
   // ==========================================
-  function filtrarArquivosInstantaneamente() {
+  // Retorna os arquivos que estão visíveis no momento (combinando pesquisa + filtros de prioridade)
+  function obterArquivosVisiveis() {
+    if (!todosArquivosDoTorrent || todosArquivosDoTorrent.length === 0) {
+      return [];
+    }
+
     const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
+    const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
+    const apenasSelecionados = Boolean(filterOnlySelected?.checked);
+
+    return todosArquivosDoTorrent.filter((f, idx) => {
+      const fileIndex = f.index !== undefined ? f.index : idx;
+
+      // 1. Filtro: Ocultar ignorados (priority === 0 / Não baixar)
+      if (ocultarIgnorados && f.priority === 0) {
+        return false;
+      }
+
+      // 2. Filtro: Apenas selecionados (marcados no checkbox)
+      if (apenasSelecionados && !arquivosSelecionadosIndices.has(fileIndex)) {
+        return false;
+      }
+
+      // 3. Filtro: Pesquisa instantânea em qualquer parte do nome ou caminho
+      if (termo) {
+        const nomeLower = (f.name || '').toLowerCase();
+        const pathLower = (f.path || '').toLowerCase();
+        if (!nomeLower.includes(termo) && !pathLower.includes(termo)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  function filtrarArquivosInstantaneamente() {
+    const termo = (inputSearchFiles?.value || '').trim();
+    const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
+    const apenasSelecionados = Boolean(filterOnlySelected?.checked);
 
     if (btnClearSearch) {
       btnClearSearch.style.display = termo.length > 0 ? 'flex' : 'none';
@@ -334,18 +380,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const arquivosFiltrados = termo === ''
-      ? todosArquivosDoTorrent
-      : todosArquivosDoTorrent.filter((f) => {
-          const nomeLower = (f.name || '').toLowerCase();
-          const pathLower = (f.path || '').toLowerCase();
-          return nomeLower.includes(termo) || pathLower.includes(termo);
-        });
+    const arquivosFiltrados = obterArquivosVisiveis();
+    const filtrosAtivos = [];
+    if (termo) filtrosAtivos.push(`busca: "${termo}"`);
+    if (ocultarIgnorados) filtrosAtivos.push('ocultar ignorados');
+    if (apenasSelecionados) filtrosAtivos.push('apenas selecionados');
 
-    renderizarTabelaArquivos(arquivosFiltrados, termo);
+    const rotuloFiltros = filtrosAtivos.join(' + ');
+
+    renderizarTabelaArquivos(arquivosFiltrados, rotuloFiltros);
   }
 
+  // Eventos reativos para busca e filtros de prioridade
   inputSearchFiles?.addEventListener('input', filtrarArquivosInstantaneamente);
+  filterHideIgnored?.addEventListener('change', filtrarArquivosInstantaneamente);
+  filterOnlySelected?.addEventListener('change', filtrarArquivosInstantaneamente);
 
   btnClearSearch?.addEventListener('click', () => {
     inputSearchFiles.value = '';
@@ -483,6 +532,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (inputSearchFiles) {
       inputSearchFiles.value = '';
+    }
+    if (filterHideIgnored) {
+      filterHideIgnored.checked = false;
+    }
+    if (filterOnlySelected) {
+      filterOnlySelected.checked = false;
     }
     if (btnClearSearch) {
       btnClearSearch.style.display = 'none';
@@ -781,6 +836,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (!inputHost.value) inputHost.value = data.config.host || 'localhost';
           if (!inputPort.value) inputPort.value = data.config.port || 8877;
           if (!inputUsername.value && data.config.username) inputUsername.value = data.config.username;
+          if (inputRefreshInterval) inputRefreshInterval.value = data.config.refreshInterval !== undefined ? data.config.refreshInterval : 10;
+          if (inputTimeoutMs) inputTimeoutMs.value = data.config.timeoutMs || 5000;
           inputHttps.checked = Boolean(data.config.useHttps);
 
           if (data.config.hasPassword && !inputPassword.value) {
@@ -789,9 +846,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const proto = inputHttps.checked ? 'https' : 'http';
           infoEndpoint.textContent = `${proto}://${inputHost.value}:${inputPort.value}`;
+
+          configurarAutoRefresh(data.config.refreshInterval !== undefined ? data.config.refreshInterval : 10);
         }
 
         const isConectado = data.statusConexao?.conectado;
+        isConectadoCliente = Boolean(isConectado);
         if (isConectado) {
           statConnectionStatus.textContent = 'Conectado';
           statConnectionStatus.style.color = '#34d399';
@@ -1032,6 +1092,190 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnSalvarPrioridades.disabled = false;
       if (savePrioIcon) savePrioIcon.classList.remove('spin-animation');
       if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = 'Aplicar Prioridades';
+    }
+  });
+
+  // ==========================================
+  // ETAPA 11: GERENCIAMENTO DE CONFIGURAÇÕES & AUTO-REFRESH
+  // ==========================================
+  let timerAutoRefresh = null;
+  let autoRefreshSegundos = 10;
+  let isConectadoCliente = false;
+
+  function configurarAutoRefresh(segundos) {
+    if (timerAutoRefresh) {
+      clearInterval(timerAutoRefresh);
+      timerAutoRefresh = null;
+    }
+
+    autoRefreshSegundos = Number(segundos) || 0;
+
+    if (infoAutoRefreshStatus) {
+      infoAutoRefreshStatus.textContent = autoRefreshSegundos > 0
+        ? `A cada ${autoRefreshSegundos}s`
+        : 'Desativado';
+      infoAutoRefreshStatus.style.color = autoRefreshSegundos > 0 ? '#38bdf8' : '#94a3b8';
+    }
+
+    if (autoRefreshSegundos > 0) {
+      timerAutoRefresh = setInterval(async () => {
+        if (isConectadoCliente && !torrentFilesSection.style.display || torrentFilesSection.style.display === 'none') {
+          await carregarTorrents(false);
+        }
+      }, autoRefreshSegundos * 1000);
+    }
+  }
+
+  async function abrirModalConfig() {
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+
+      if (res.ok && data.config?.qbittorrent) {
+        const qb = data.config.qbittorrent;
+        if (inputModalHost) inputModalHost.value = qb.host || 'localhost';
+        if (inputModalPort) inputModalPort.value = qb.port || 8877;
+        if (inputModalUsername) inputModalUsername.value = qb.username || 'admin';
+        if (inputModalRefreshInterval) inputModalRefreshInterval.value = qb.refreshInterval !== undefined ? qb.refreshInterval : 10;
+        if (inputModalTimeout) inputModalTimeout.value = qb.timeoutMs || 5000;
+        if (inputModalHttps) inputModalHttps.checked = Boolean(qb.useHttps);
+
+        if (inputModalPassword) {
+          inputModalPassword.value = '';
+          inputModalPassword.placeholder = qb.hasPassword ? '•••••••• (senha salva)' : 'Digite a senha';
+        }
+      }
+    } catch {
+      // Usa valores atuais do formulário caso a requisição falhe
+      if (inputModalHost) inputModalHost.value = inputHost?.value || 'localhost';
+      if (inputModalPort) inputModalPort.value = inputPort?.value || 8877;
+      if (inputModalUsername) inputModalUsername.value = inputUsername?.value || 'admin';
+    }
+
+    if (modalConfiguracoes) {
+      modalConfiguracoes.style.display = 'flex';
+      if (inputModalHost) inputModalHost.focus();
+    }
+  }
+
+  function fecharModalConfig() {
+    if (modalConfiguracoes) {
+      modalConfiguracoes.style.display = 'none';
+    }
+  }
+
+  btnAbrirConfigModal?.addEventListener('click', abrirModalConfig);
+  btnFecharModalConfig?.addEventListener('click', fecharModalConfig);
+
+  // Fecha modal ao clicar fora do card
+  modalConfiguracoes?.addEventListener('click', (e) => {
+    if (e.target === modalConfiguracoes) {
+      fecharModalConfig();
+    }
+  });
+
+  // Fecha modal com tecla Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalConfiguracoes && modalConfiguracoes.style.display === 'flex') {
+      fecharModalConfig();
+    }
+  });
+
+  // Restaurar valores padrão no modal
+  btnModalRestaurar?.addEventListener('click', () => {
+    if (inputModalHost) inputModalHost.value = 'localhost';
+    if (inputModalPort) inputModalPort.value = 8877;
+    if (inputModalUsername) inputModalUsername.value = 'admin';
+    if (inputModalPassword) {
+      inputModalPassword.value = 'Ozzy261220';
+      inputModalPassword.placeholder = 'Ozzy261220';
+    }
+    if (inputModalRefreshInterval) inputModalRefreshInterval.value = '10';
+    if (inputModalTimeout) inputModalTimeout.value = 5000;
+    if (inputModalHttps) inputModalHttps.checked = false;
+
+    mostrarToast('Padrões Carregados', 'Valores padrão do qBittorrent preenchidos nos campos.', 'info');
+  });
+
+  // Testar conexão a partir do modal
+  btnModalTestar?.addEventListener('click', async () => {
+    btnModalTestar.disabled = true;
+    const textoOriginal = btnModalTestar.innerHTML;
+    btnModalTestar.innerHTML = '<span>Testando...</span>';
+
+    const payload = {
+      host: inputModalHost?.value.trim() || 'localhost',
+      port: Number(inputModalPort?.value) || 8877,
+      username: inputModalUsername?.value.trim(),
+      password: inputModalPassword?.value || undefined,
+      useHttps: Boolean(inputModalHttps?.checked),
+      timeoutMs: Number(inputModalTimeout?.value) || 5000,
+      refreshInterval: Number(inputModalRefreshInterval?.value) || 10,
+    };
+
+    try {
+      const response = await fetch('/api/client/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.sucesso) {
+        mostrarToast('Teste Bem-sucedido', data.mensagem || 'Conectado com sucesso ao qBittorrent!', 'success');
+      } else {
+        mostrarToast('Falha no Teste', data.erro || 'Não foi possível autenticar no qBittorrent.', 'error');
+      }
+    } catch (err) {
+      mostrarToast('Erro de Rede', `Falha ao testar conexão: ${err.message}`, 'error');
+    } finally {
+      btnModalTestar.disabled = false;
+      btnModalTestar.innerHTML = textoOriginal;
+    }
+  });
+
+  // Salvar configurações do modal
+  formModalConfig?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btnModalSalvar.disabled = true;
+    const textoSalvar = btnModalSalvar.innerHTML;
+    btnModalSalvar.innerHTML = '<span>Salvando...</span>';
+
+    const payload = {
+      host: inputModalHost?.value.trim() || 'localhost',
+      port: Number(inputModalPort?.value) || 8877,
+      username: inputModalUsername?.value.trim(),
+      password: inputModalPassword?.value || undefined,
+      useHttps: Boolean(inputModalHttps?.checked),
+      timeoutMs: Number(inputModalTimeout?.value) || 5000,
+      refreshInterval: Number(inputModalRefreshInterval?.value) ?? 10,
+    };
+
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.sucesso) {
+        mostrarToast('Configurações Salvas', 'Configurações persistidas em data/config.json com sucesso!', 'success');
+        fecharModalConfig();
+
+        configurarAutoRefresh(payload.refreshInterval);
+        await carregarDados();
+        await carregarTorrents();
+      } else {
+        mostrarToast('Erro ao Salvar', data.erro || 'Falha ao salvar configurações.', 'error');
+      }
+    } catch (err) {
+      mostrarToast('Erro de Rede', err.message, 'error');
+    } finally {
+      btnModalSalvar.disabled = false;
+      btnModalSalvar.innerHTML = textoSalvar;
     }
   });
 
