@@ -6,7 +6,7 @@
   "qbittorrent": {
     "host": "127.0.0.1",
     "port": 8877,
-    "username": "",
+    "username": "admin",
     "password": "Ozzy261220",
     "useHttps": false,
     "timeoutMs": 5000

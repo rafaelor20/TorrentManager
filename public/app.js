@@ -1,4 +1,4 @@
-// Frontend do TorrentManager — Etapas 1 a 5 (Visualização dos Arquivos)
+// Frontend do TorrentManager — Etapas 1 a 6 (Pesquisa Instantânea)
 document.addEventListener('DOMContentLoaded', async () => {
   // Elementos da interface
   const systemStatusBadge = document.getElementById('systemStatusBadge');
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statPausedTorrents = document.getElementById('statPausedTorrents');
   const statTotalSize = document.getElementById('statTotalSize');
 
-  // Elementos da seção de arquivos (Etapa 5)
+  // Elementos da seção de arquivos (Etapa 5) e Pesquisa (Etapa 6)
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const selectedTorrentName = document.getElementById('selectedTorrentName');
   const selectedTorrentMeta = document.getElementById('selectedTorrentMeta');
@@ -33,6 +33,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const filesHashTag = document.getElementById('filesHashTag');
   const filesTableBody = document.getElementById('filesTableBody');
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
+  
+  // Pesquisa instantânea (Etapa 6)
+  const inputSearchFiles = document.getElementById('inputSearchFiles');
+  const btnClearSearch = document.getElementById('btnClearSearch');
+  const searchResultCount = document.getElementById('searchResultCount');
 
   // Formulário de conexão
   const formConnection = document.getElementById('formConnection');
@@ -65,8 +70,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toastMessage = document.getElementById('toastMessage');
   const toastCloseBtn = document.getElementById('toastCloseBtn');
 
-  // Estado da aplicação
+  // Estado em memória
   let torrentSelecionadoAtual = null;
+  let todosArquivosDoTorrent = []; // Cache em memória dos arquivos do torrent selecionado
 
   // Formata bytes para exibição legível
   function formatarTamanho(bytes) {
@@ -147,7 +153,133 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================
-  // ETAPA 5: VISUALIZAÇÃO DOS ARQUIVOS
+  // ETAPA 6: PESQUISA INSTANTÂNEA
+  // ==========================================
+  function filtrarArquivosInstantaneamente() {
+    const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
+
+    // Alterna visibilidade do botão limpar busca
+    if (btnClearSearch) {
+      btnClearSearch.style.display = termo.length > 0 ? 'flex' : 'none';
+    }
+
+    if (!todosArquivosDoTorrent || todosArquivosDoTorrent.length === 0) {
+      return;
+    }
+
+    // Filtra ignorando maiúsculas/minúsculas e buscando em qualquer parte do nome ou caminho
+    const arquivosFiltrados = termo === ''
+      ? todosArquivosDoTorrent
+      : todosArquivosDoTorrent.filter((f) => {
+          const nomeLower = (f.name || '').toLowerCase();
+          const pathLower = (f.path || '').toLowerCase();
+          return nomeLower.includes(termo) || pathLower.includes(termo);
+        });
+
+    renderizarTabelaArquivos(arquivosFiltrados, termo);
+  }
+
+  // Evento em tempo real: pesquisa instantânea enquanto digita
+  inputSearchFiles?.addEventListener('input', filtrarArquivosInstantaneamente);
+
+  // Limpar pesquisa
+  btnClearSearch?.addEventListener('click', () => {
+    inputSearchFiles.value = '';
+    filtrarArquivosInstantaneamente();
+    inputSearchFiles.focus();
+  });
+
+  // Atalho: tecla Escape limpa a pesquisa
+  inputSearchFiles?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      inputSearchFiles.value = '';
+      filtrarArquivosInstantaneamente();
+    }
+  });
+
+  // Renderiza as linhas da tabela de arquivos com alta performance
+  function renderizarTabelaArquivos(arquivos, termoBusca = '') {
+    const totalOriginal = todosArquivosDoTorrent.length;
+    const totalFiltrado = arquivos.length;
+
+    if (termoBusca !== '') {
+      searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
+      filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos correspondentes à busca "${termoBusca}"`;
+    } else {
+      searchResultCount.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos disponíveis`;
+      filesCountText.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos carregados`;
+    }
+
+    if (totalFiltrado === 0) {
+      filesTableBody.innerHTML = `
+        <tr class="empty-state-row">
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <h4>Nenhum arquivo encontrado</h4>
+              <p>Nenhum arquivo corresponde ao termo <strong>"${termoBusca}"</strong>. Tente outro nome ou limpe a busca.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    arquivos.forEach((f, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = 'torrent-file-row';
+      tr.dataset.index = f.index;
+
+      const prioInfo = formatarPrioridade(f.priority);
+      const percentualNum = typeof f.progress === 'number'
+        ? (f.progress > 1 ? f.progress : f.progress * 100)
+        : 0;
+      const percentualStr = percentualNum.toFixed(1) + '%';
+      const isComplete = percentualNum >= 100;
+
+      const nomeArquivo = f.name || f.path.split('/').pop() || f.path;
+      const caminhoArquivo = f.path || f.name;
+
+      tr.innerHTML = `
+        <td class="cell-file-index">${f.index !== undefined ? f.index : idx}</td>
+        <td class="cell-file-name">
+          <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
+        </td>
+        <td class="cell-file-path">
+          <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
+        </td>
+        <td class="cell-file-size">
+          ${formatarTamanho(f.size)}
+        </td>
+        <td class="cell-file-prio">
+          <span class="prio-tag ${prioInfo.classe}">
+            ${prioInfo.label}
+          </span>
+        </td>
+        <td class="cell-file-progress">
+          <div class="progress-wrapper">
+            <div class="progress-label-row">
+              <span>${percentualStr}</span>
+              <span>${isComplete ? '100%' : ''}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
+            </div>
+          </div>
+        </td>
+      `;
+
+      fragment.appendChild(tr);
+    });
+
+    filesTableBody.innerHTML = '';
+    filesTableBody.appendChild(fragment);
+  }
+
+  // ==========================================
+  // ETAPA 5: SELEÇÃO E VISUALIZAÇÃO DOS ARQUIVOS
   // ==========================================
   async function selecionarTorrent(torrent) {
     torrentSelecionadoAtual = torrent;
@@ -157,17 +289,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       r.classList.toggle('selected', r.dataset.hash === torrent.hash);
     });
 
-    // Exibe a seção de arquivos
+    // Exibe a seção de arquivos e reseta o input de pesquisa
     torrentFilesSection.style.display = 'flex';
     selectedTorrentName.textContent = torrent.name;
     selectedTorrentMeta.textContent = `Tamanho total: ${formatarTamanho(torrent.size)}`;
     
+    if (inputSearchFiles) {
+      inputSearchFiles.value = '';
+    }
+    if (btnClearSearch) {
+      btnClearSearch.style.display = 'none';
+    }
+
     const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
     selectedTorrentStatus.textContent = statusInfo.label;
     filesHashTag.textContent = `Hash: ${torrent.hash}`;
     filesCountText.textContent = 'Carregando arquivos do torrent...';
+    searchResultCount.textContent = 'Carregando lista...';
 
-    // Estado inicial de carregamento da tabela de arquivos
+    // Estado de carregamento na tabela
     filesTableBody.innerHTML = `
       <tr class="empty-state-row">
         <td colspan="6">
@@ -188,90 +328,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await res.json();
 
       if (res.ok && data.sucesso) {
-        const files = data.files || [];
+        todosArquivosDoTorrent = data.files || [];
         
-        filesCountText.textContent = files.length === 1
-          ? '1 arquivo encontrado'
-          : `${files.length.toLocaleString('pt-BR')} arquivos carregados`;
+        selectedTorrentMeta.textContent = `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
 
-        selectedTorrentMeta.textContent = `${files.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
-
-        if (files.length === 0) {
-          filesTableBody.innerHTML = `
-            <tr class="empty-state-row">
-              <td colspan="6">
-                <div class="empty-state">
-                  <div class="empty-icon">📄</div>
-                  <h4>Nenhum arquivo encontrado</h4>
-                  <p>Este torrent ainda não possui arquivos listados ou os metadados estão sendo baixados.</p>
-                </div>
-              </td>
-            </tr>
-          `;
-          return;
-        }
-
-        // Renderização eficiente com DocumentFragment
-        const fragment = document.createDocumentFragment();
-
-        files.forEach((f, idx) => {
-          const tr = document.createElement('tr');
-          tr.className = 'torrent-file-row';
-          tr.dataset.index = f.index;
-
-          const prioInfo = formatarPrioridade(f.priority);
-          const percentualNum = typeof f.progress === 'number'
-            ? (f.progress > 1 ? f.progress : f.progress * 100)
-            : 0;
-          const percentualStr = percentualNum.toFixed(1) + '%';
-          const isComplete = percentualNum >= 100;
-
-          // Extrai o nome do arquivo a partir do caminho se necessário
-          const nomeArquivo = f.name || f.path.split('/').pop() || f.path;
-          const caminhoArquivo = f.path || f.name;
-
-          tr.innerHTML = `
-            <td class="cell-file-index">${f.index !== undefined ? f.index : idx}</td>
-            <td class="cell-file-name">
-              <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
-            </td>
-            <td class="cell-file-path">
-              <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
-            </td>
-            <td class="cell-file-size">
-              ${formatarTamanho(f.size)}
-            </td>
-            <td class="cell-file-prio">
-              <span class="prio-tag ${prioInfo.classe}">
-                ${prioInfo.label}
-              </span>
-            </td>
-            <td class="cell-file-progress">
-              <div class="progress-wrapper">
-                <div class="progress-label-row">
-                  <span>${percentualStr}</span>
-                  <span>${isComplete ? '100%' : ''}</span>
-                </div>
-                <div class="progress-track">
-                  <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
-                </div>
-              </div>
-            </td>
-          `;
-
-          fragment.appendChild(tr);
-        });
-
-        filesTableBody.innerHTML = '';
-        filesTableBody.appendChild(fragment);
+        renderizarTabelaArquivos(todosArquivosDoTorrent, '');
 
         mostrarToast(
           'Arquivos Carregados',
-          `${files.length.toLocaleString('pt-BR')} arquivos carregados com sucesso de "${torrent.name}".`,
+          `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso de "${torrent.name}".`,
           'success'
         );
       } else {
+        todosArquivosDoTorrent = [];
         filesCountText.textContent = 'Erro ao carregar arquivos';
+        searchResultCount.textContent = '0 arquivos';
         filesTableBody.innerHTML = `
           <tr class="empty-state-row">
             <td colspan="6">
@@ -286,7 +357,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarToast('Erro', data.erro || 'Falha ao carregar arquivos do torrent.', 'error');
       }
     } catch (err) {
+      todosArquivosDoTorrent = [];
       filesCountText.textContent = 'Erro de comunicação';
+      searchResultCount.textContent = 'Erro';
       filesTableBody.innerHTML = `
         <tr class="empty-state-row">
           <td colspan="6">
@@ -306,6 +379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnFecharArquivos?.addEventListener('click', () => {
     torrentFilesSection.style.display = 'none';
     torrentSelecionadoAtual = null;
+    todosArquivosDoTorrent = [];
     document.querySelectorAll('.torrent-row').forEach((r) => r.classList.remove('selected'));
   });
 
@@ -681,6 +755,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarToast('Desconectado', 'Sessão encerrada com o cliente.', 'info');
         torrentFilesSection.style.display = 'none';
         torrentSelecionadoAtual = null;
+        todosArquivosDoTorrent = [];
         await carregarDados();
         await carregarTorrents();
       }
