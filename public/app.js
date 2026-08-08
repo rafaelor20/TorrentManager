@@ -188,6 +188,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================
+  // ETAPA 12: VIRTUALIZAÇÃO DE LISTA & OTIMIZAÇÃO (50.000+ ARQUIVOS)
+  // ==========================================
+  const ROW_HEIGHT = 44; // Altura fixa de cada linha em pixels
+  const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport para 60 FPS
+  const filesScrollArea = document.getElementById('filesScrollArea');
+  let arquivosFiltradosAtuais = []; // Cache dos arquivos visíveis para o Virtual Scroll
+  let scrollRafId = null;
+  let termoBuscaAtual = '';
+
+  // ==========================================
   // ETAPA 7: SELEÇÃO INDIVIDUAL DE ARQUIVOS
   // ==========================================
   function atualizarResumoSelecao() {
@@ -196,8 +206,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Calcula a soma do tamanho dos arquivos selecionados
     let bytesSelecionados = 0;
-    todosArquivosDoTorrent.forEach((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
+    todosArquivosDoTorrent.forEach((f) => {
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
       if (arquivosSelecionadosIndices.has(fileIndex)) {
         bytesSelecionados += f.size || 0;
       }
@@ -225,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       arquivosSelecionadosIndices.delete(index);
     }
 
-    // Atualiza visualmente a linha se estiver renderizada no DOM
+    // Atualiza a linha no DOM se estiver atualmente dentro do viewport visível
     const tr = document.querySelector(`.torrent-file-row[data-index="${index}"]`);
     if (tr) {
       tr.classList.toggle('checked', isMarcado);
@@ -236,6 +246,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     atualizarResumoSelecao();
   }
 
+  // Event Delegation no container de arquivos: zero alocações extras no Garbage Collector
+  filesTableBody?.addEventListener('click', (e) => {
+    const tr = e.target.closest('.torrent-file-row');
+    if (!tr) return;
+    const index = Number(tr.dataset.index);
+    if (isNaN(index)) return;
+
+    if (e.target.classList.contains('file-check-input') || e.target.closest('label.file-check-label')) {
+      // Deixa o evento nativo do checkbox disparar a mudança
+      return;
+    }
+
+    alternarSelecaoArquivo(index);
+  });
+
+  filesTableBody?.addEventListener('change', (e) => {
+    if (e.target.classList.contains('file-check-input')) {
+      const index = Number(e.target.dataset.index);
+      if (!isNaN(index)) {
+        alternarSelecaoArquivo(index, e.target.checked);
+      }
+    }
+  });
+
   // ==========================================
   // ETAPA 8: AÇÕES DE SELEÇÃO EM MASSA
   // ==========================================
@@ -243,19 +277,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
 
-    visiveis.forEach((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
+    visiveis.forEach((f) => {
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
       arquivosSelecionadosIndices.add(fileIndex);
-
-      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
-      if (tr) {
-        tr.classList.add('checked');
-        const checkbox = tr.querySelector('.file-check-input');
-        if (checkbox) checkbox.checked = true;
-      }
     });
 
-    atualizarResumoSelecao();
+    renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
       'Seleção em Massa',
@@ -270,19 +297,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
 
-    visiveis.forEach((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
+    visiveis.forEach((f) => {
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
       arquivosSelecionadosIndices.delete(fileIndex);
-
-      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
-      if (tr) {
-        tr.classList.remove('checked');
-        const checkbox = tr.querySelector('.file-check-input');
-        if (checkbox) checkbox.checked = false;
-      }
     });
 
-    atualizarResumoSelecao();
+    renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
       'Seleção em Massa',
@@ -298,8 +318,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (visiveis.length === 0) return;
 
     let totalInvertidos = 0;
-    visiveis.forEach((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
+    visiveis.forEach((f) => {
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
       const novoEstado = !arquivosSelecionadosIndices.has(fileIndex);
 
       if (novoEstado) {
@@ -308,16 +328,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         arquivosSelecionadosIndices.delete(fileIndex);
       }
       totalInvertidos++;
-
-      const tr = document.querySelector(`.torrent-file-row[data-index="${fileIndex}"]`);
-      if (tr) {
-        tr.classList.toggle('checked', novoEstado);
-        const checkbox = tr.querySelector('.file-check-input');
-        if (checkbox) checkbox.checked = novoEstado;
-      }
     });
 
-    atualizarResumoSelecao();
+    renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
       'Seleção Invertida',
@@ -329,9 +342,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================
-  // ETAPA 10: FILTROS COMBINÁVEIS POR PRIORIDADE & BUSCA
+  // ETAPA 10 & 12: FILTROS & PESQUISA INSTANTÂNEA PRÉ-INDEXADA
   // ==========================================
-  // Retorna os arquivos que estão visíveis no momento (combinando pesquisa + filtros de prioridade)
   function obterArquivosVisiveis() {
     if (!todosArquivosDoTorrent || todosArquivosDoTorrent.length === 0) {
       return [];
@@ -341,24 +353,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
     const apenasSelecionados = Boolean(filterOnlySelected?.checked);
 
-    return todosArquivosDoTorrent.filter((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
+    return todosArquivosDoTorrent.filter((f) => {
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
 
       // 1. Filtro: Ocultar ignorados (priority === 0 / Não baixar)
       if (ocultarIgnorados && f.priority === 0) {
         return false;
       }
 
-      // 2. Filtro: Apenas selecionados (marcados no checkbox)
+      // 2. Filtro: Apenas selecionados (marcados no Set)
       if (apenasSelecionados && !arquivosSelecionadosIndices.has(fileIndex)) {
         return false;
       }
 
-      // 3. Filtro: Pesquisa instantânea em qualquer parte do nome ou caminho
+      // 3. Filtro: Pesquisa instantânea por substring pré-indexada
       if (termo) {
-        const nomeLower = (f.name || '').toLowerCase();
-        const pathLower = (f.path || '').toLowerCase();
-        if (!nomeLower.includes(termo) && !pathLower.includes(termo)) {
+        const searchStr = f._searchLower || ((f.name || '') + ' ' + (f.path || '')).toLowerCase();
+        if (!searchStr.includes(termo)) {
           return false;
         }
       }
@@ -369,8 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function filtrarArquivosInstantaneamente() {
     const termo = (inputSearchFiles?.value || '').trim();
-    const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
-    const apenasSelecionados = Boolean(filterOnlySelected?.checked);
+    termoBuscaAtual = termo;
 
     if (btnClearSearch) {
       btnClearSearch.style.display = termo.length > 0 ? 'flex' : 'none';
@@ -380,15 +390,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const arquivosFiltrados = obterArquivosVisiveis();
-    const filtrosAtivos = [];
-    if (termo) filtrosAtivos.push(`busca: "${termo}"`);
-    if (ocultarIgnorados) filtrosAtivos.push('ocultar ignorados');
-    if (apenasSelecionados) filtrosAtivos.push('apenas selecionados');
+    arquivosFiltradosAtuais = obterArquivosVisiveis();
 
-    const rotuloFiltros = filtrosAtivos.join(' + ');
+    // Rola de volta para o topo ao alterar a busca/filtro
+    if (filesScrollArea) {
+      filesScrollArea.scrollTop = 0;
+    }
 
-    renderizarTabelaArquivos(arquivosFiltrados, rotuloFiltros);
+    renderizarTabelaArquivosVirtualizada();
   }
 
   // Eventos reativos para busca e filtros de prioridade
@@ -409,14 +418,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Renderiza as linhas da tabela de arquivos com checkboxes da Etapa 7
-  function renderizarTabelaArquivos(arquivos, termoBusca = '') {
+  // ==========================================
+  // RENDERIZAÇÃO VIRTUALIZADA (WINDOWING DOM)
+  // ==========================================
+  function renderizarTabelaArquivosVirtualizada() {
     const totalOriginal = todosArquivosDoTorrent.length;
-    const totalFiltrado = arquivos.length;
+    const totalFiltrado = arquivosFiltradosAtuais.length;
 
-    if (termoBusca !== '') {
+    if (termoBuscaAtual !== '') {
       searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
-      filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos para "${termoBusca}"`;
+      filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos para "${termoBuscaAtual}"`;
     } else {
       searchResultCount.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos disponíveis`;
       filesCountText.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos carregados`;
@@ -429,7 +440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="empty-state">
               <div class="empty-icon">🔍</div>
               <h4>Nenhum arquivo encontrado</h4>
-              <p>Nenhum arquivo corresponde à busca <strong>"${termoBusca}"</strong>.</p>
+              <p>Nenhum arquivo corresponde aos filtros ativos.</p>
             </div>
           </td>
         </tr>
@@ -438,15 +449,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const scrollTop = filesScrollArea ? filesScrollArea.scrollTop : 0;
+    const viewportHeight = filesScrollArea ? (filesScrollArea.clientHeight || 520) : 520;
+
+    const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_COUNT);
+    const endIndex = Math.min(totalFiltrado, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + BUFFER_COUNT);
+
+    const topPadding = startIndex * ROW_HEIGHT;
+    const bottomPadding = Math.max(0, (totalFiltrado - endIndex) * ROW_HEIGHT);
+
     const fragment = document.createDocumentFragment();
 
-    arquivos.forEach((f, idx) => {
-      const fileIndex = f.index !== undefined ? f.index : idx;
-      const isSelected = arquivosSelecionadosIndices.has(fileIndex);
+    // Espaçador virtual superior
+    if (topPadding > 0) {
+      const spacerTop = document.createElement('tr');
+      spacerTop.className = 'virtual-spacer-row';
+      spacerTop.style.height = `${topPadding}px`;
+      spacerTop.innerHTML = `<td colspan="7" style="height: ${topPadding}px; padding: 0; margin: 0; border: none;"></td>`;
+      fragment.appendChild(spacerTop);
+    }
 
-      const tr = document.createElement('tr');
-      tr.className = `torrent-file-row ${isSelected ? 'checked' : ''}`;
-      tr.dataset.index = fileIndex;
+    // Renderiza apenas os itens visíveis no viewport (~30 a 50 linhas)
+    for (let i = startIndex; i < endIndex; i++) {
+      const f = arquivosFiltradosAtuais[i];
+      const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : i);
+      const isSelected = arquivosSelecionadosIndices.has(fileIndex);
 
       const prioInfo = formatarPrioridade(f.priority);
       const percentualNum = typeof f.progress === 'number'
@@ -457,6 +484,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const nomeArquivo = f.name || f.path.split('/').pop() || f.path;
       const caminhoArquivo = f.path || f.name;
+
+      const tr = document.createElement('tr');
+      tr.className = `torrent-file-row ${isSelected ? 'checked' : ''}`;
+      tr.dataset.index = fileIndex;
 
       tr.innerHTML = `
         <td class="cell-file-check">
@@ -493,26 +524,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
       `;
 
-      // Evento de seleção individual (Etapa 7)
-      const checkbox = tr.querySelector('.file-check-input');
-      checkbox?.addEventListener('change', (e) => {
-        e.stopPropagation();
-        alternarSelecaoArquivo(fileIndex, checkbox.checked);
-      });
-
-      // Clique na linha do arquivo também alterna a seleção
-      tr.addEventListener('click', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.closest('label')) return;
-        alternarSelecaoArquivo(fileIndex);
-      });
-
       fragment.appendChild(tr);
-    });
+    }
+
+    // Espaçador virtual inferior
+    if (bottomPadding > 0) {
+      const spacerBottom = document.createElement('tr');
+      spacerBottom.className = 'virtual-spacer-row';
+      spacerBottom.style.height = `${bottomPadding}px`;
+      spacerBottom.innerHTML = `<td colspan="7" style="height: ${bottomPadding}px; padding: 0; margin: 0; border: none;"></td>`;
+      fragment.appendChild(spacerBottom);
+    }
 
     filesTableBody.innerHTML = '';
     filesTableBody.appendChild(fragment);
     atualizarResumoSelecao();
   }
+
+  // Listener de Scroll com requestAnimationFrame a 60 FPS
+  filesScrollArea?.addEventListener('scroll', () => {
+    if (scrollRafId) cancelAnimationFrame(scrollRafId);
+    scrollRafId = requestAnimationFrame(() => {
+      renderizarTabelaArquivosVirtualizada();
+    });
+  }, { passive: true });
 
   // ==========================================
   // ETAPA 5: SELEÇÃO E VISUALIZAÇÃO DOS ARQUIVOS
@@ -572,23 +607,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (res.ok && data.sucesso) {
         todosArquivosDoTorrent = data.files || [];
         
-        // Inicializa o estado de seleção individual (Etapa 7):
-        // Arquivos com prioridade > 0 começam marcados; prioridade 0 (não baixar) começam desmarcados
+        // Pré-processamento e indexação instantânea em O(N) para 50.000+ arquivos
         arquivosSelecionadosIndices = new Set();
         todosArquivosDoTorrent.forEach((f, idx) => {
-          const fileIndex = f.index !== undefined ? f.index : idx;
+          f._fileIndex = f.index !== undefined ? f.index : idx;
+          f._searchLower = ((f.name || '') + ' ' + (f.path || '')).toLowerCase();
+
+          // Arquivos com prioridade > 0 começam marcados; prioridade 0 (não baixar) começam desmarcados
           if (f.priority !== 0) {
-            arquivosSelecionadosIndices.add(fileIndex);
+            arquivosSelecionadosIndices.add(f._fileIndex);
           }
         });
 
         selectedTorrentMeta.textContent = `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
 
-        renderizarTabelaArquivos(todosArquivosDoTorrent, '');
+        termoBuscaAtual = '';
+        arquivosFiltradosAtuais = todosArquivosDoTorrent;
+        if (filesScrollArea) filesScrollArea.scrollTop = 0;
+
+        renderizarTabelaArquivosVirtualizada();
 
         mostrarToast(
           'Arquivos Carregados',
-          `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso.`,
+          `${todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso (Virtualização Ativa).`,
           'success'
         );
       } else {
