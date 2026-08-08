@@ -1,47 +1,167 @@
 import { Router, Request, Response } from 'express';
 import { TorrentClient } from '../domain/client/TorrentClient.js';
+import { QBittorrentClient } from '../infra/clients/QBittorrentClient.js';
 import { TorrentClientFactory } from '../infra/clients/TorrentClientFactory.js';
 import { TorrentClientConfig } from '../domain/models/TorrentClientConfig.js';
+import { ConfigService } from '../infra/config/ConfigService.js';
 
 export function createRouter(torrentClient: TorrentClient): Router {
   const router = Router();
 
-  // Endpoint de status geral da aplicação
+  // Obter status geral da aplicação e do cliente
   router.get('/status', (_req: Request, res: Response) => {
+    const qbInfo = torrentClient instanceof QBittorrentClient ? torrentClient.obterInfo() : null;
+    const configAtual = ConfigService.carregar();
+
     res.json({
       status: 'online',
       mensagem: 'Aplicação iniciada com sucesso',
       versao: '1.0.0',
       clienteAtivo: torrentClient.obterNome(),
       statusConexao: torrentClient.obterStatusConexao(),
+      infoCliente: qbInfo,
+      config: {
+        host: configAtual.qbittorrent.host,
+        port: configAtual.qbittorrent.port,
+        username: configAtual.qbittorrent.username,
+        hasPassword: Boolean(configAtual.qbittorrent.password),
+        useHttps: configAtual.qbittorrent.useHttps,
+        timeoutMs: configAtual.qbittorrent.timeoutMs,
+      },
       clientesSuportados: TorrentClientFactory.obterClientesSuportados(),
       timestamp: new Date().toISOString(),
     });
   });
 
-  // Endpoint para testar conexão com o cliente BitTorrent
-  router.post('/client/connect', async (req: Request, res: Response) => {
+  // Obter configurações completas atuais
+  router.get('/config', (_req: Request, res: Response) => {
+    const config = ConfigService.carregar();
+    res.json({
+      sucesso: true,
+      config: {
+        server: config.server,
+        qbittorrent: {
+          host: config.qbittorrent.host,
+          port: config.qbittorrent.port,
+          username: config.qbittorrent.username,
+          hasPassword: Boolean(config.qbittorrent.password),
+          useHttps: config.qbittorrent.useHttps,
+          timeoutMs: config.qbittorrent.timeoutMs,
+        },
+      },
+    });
+  });
+
+  // Salvar configurações no arquivo data/config.json
+  router.post('/config', (req: Request, res: Response) => {
     try {
-      const config: Partial<TorrentClientConfig> = req.body || {};
-      const sucesso = await torrentClient.conectar(config as TorrentClientConfig);
-      const status = torrentClient.obterStatusConexao();
+      const { host, port, username, password, useHttps, timeoutMs } = req.body || {};
+      
+      const configAtual = ConfigService.carregar();
+      const novoQbitConfig: Partial<TorrentClientConfig> = {
+        host: typeof host === 'string' ? host : configAtual.qbittorrent.host,
+        port: typeof port === 'number' ? port : Number(port) || configAtual.qbittorrent.port,
+        username: typeof username === 'string' ? username : configAtual.qbittorrent.username,
+        useHttps: typeof useHttps === 'boolean' ? useHttps : configAtual.qbittorrent.useHttps,
+        timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : Number(timeoutMs) || configAtual.qbittorrent.timeoutMs,
+      };
+
+      // Só substitui a senha se enviada uma nova
+      if (typeof password === 'string' && password !== '') {
+        novoQbitConfig.password = password;
+      }
+
+      const salva = ConfigService.salvarQBittorrent(novoQbitConfig);
+      
+      // Atualiza o cliente instanciado com as novas configurações
+      if (torrentClient instanceof QBittorrentClient) {
+        torrentClient.atualizarConfig(salva.qbittorrent);
+      }
 
       res.json({
-        sucesso,
-        status,
-        mensagem: sucesso
-          ? `Conectado com sucesso ao ${torrentClient.obterNome()}`
-          : `Não foi possível conectar ao ${torrentClient.obterNome()}`,
+        sucesso: true,
+        mensagem: 'Configurações salvas com sucesso no arquivo local!',
+        config: {
+          host: salva.qbittorrent.host,
+          port: salva.qbittorrent.port,
+          username: salva.qbittorrent.username,
+          hasPassword: Boolean(salva.qbittorrent.password),
+          useHttps: salva.qbittorrent.useHttps,
+          timeoutMs: salva.qbittorrent.timeoutMs,
+        },
       });
     } catch (err: any) {
       res.status(500).json({
         sucesso: false,
-        erro: err?.message || 'Erro interno ao conectar',
+        erro: err?.message || 'Erro ao persistir configurações no arquivo',
       });
     }
   });
 
-  // Endpoint para listar torrents (usando a interface de abstração)
+  // Conectar / Testar conexão com a Web API do qBittorrent
+  router.post('/client/connect', async (req: Request, res: Response) => {
+    try {
+      const { host, port, username, password, useHttps, timeoutMs, salvarConfig } = req.body || {};
+
+      let overrideConfig: Partial<TorrentClientConfig> | undefined;
+
+      if (host || port || username !== undefined || password !== undefined || useHttps !== undefined) {
+        const configAtual = ConfigService.carregar();
+        overrideConfig = {
+          host: host || configAtual.qbittorrent.host,
+          port: port ? Number(port) : configAtual.qbittorrent.port,
+          username: username !== undefined ? username : configAtual.qbittorrent.username,
+          password: password !== undefined ? password : configAtual.qbittorrent.password,
+          useHttps: useHttps !== undefined ? Boolean(useHttps) : configAtual.qbittorrent.useHttps,
+          timeoutMs: timeoutMs ? Number(timeoutMs) : configAtual.qbittorrent.timeoutMs,
+        };
+
+        if (salvarConfig) {
+          ConfigService.salvarQBittorrent(overrideConfig);
+        }
+      }
+
+      const conectado = await torrentClient.conectar(overrideConfig as TorrentClientConfig);
+      const status = torrentClient.obterStatusConexao();
+      const qbInfo = torrentClient instanceof QBittorrentClient ? torrentClient.obterInfo() : null;
+
+      res.json({
+        sucesso: conectado,
+        status,
+        infoCliente: qbInfo,
+        mensagem: conectado
+          ? `Conexão estabelecida com sucesso ao ${torrentClient.obterNome()}!`
+          : status.detalhes || 'Falha ao conectar ao cliente.',
+      });
+    } catch (err: any) {
+      res.status(400).json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao conectar ao qBittorrent',
+        status: torrentClient.obterStatusConexao(),
+      });
+    }
+  });
+
+  // Desconectar do cliente BitTorrent
+  router.post('/client/disconnect', async (_req: Request, res: Response) => {
+    try {
+      if (torrentClient.desconectar) {
+        await torrentClient.desconectar();
+      }
+      res.json({
+        sucesso: true,
+        mensagem: 'Desconectado com sucesso.',
+        status: torrentClient.obterStatusConexao(),
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao desconectar',
+      });
+    }
+  });
+
+  // Listar torrents
   router.get('/torrents', async (_req: Request, res: Response) => {
     try {
       const torrents = await torrentClient.listarTorrents();
@@ -58,7 +178,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Endpoint para listar arquivos de um torrent
+  // Listar arquivos do torrent
   router.get('/torrents/:hash/files', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;

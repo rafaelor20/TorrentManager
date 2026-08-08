@@ -24,7 +24,7 @@
         </div>
         <div class="brand-text">
           <h1>TorrentManager</h1>
-          <span class="brand-tagline">Single Executable • Modular BitTorrent Architecture</span>
+          <span class="brand-tagline">Single Executable • qBittorrent Web API</span>
         </div>
       </div>
 
@@ -40,9 +40,19 @@
       </div>
     </header>
 
+    <!-- Notificação / Toast Flutuante -->
+    <div id="toastNotification" class="toast-alert" style="display: none;">
+      <div class="toast-icon" id="toastIcon">ℹ</div>
+      <div class="toast-body">
+        <strong class="toast-title" id="toastTitle">Notificação</strong>
+        <p class="toast-message" id="toastMessage">Mensagem do sistema</p>
+      </div>
+      <button class="toast-close" id="toastCloseBtn">&times;</button>
+    </div>
+
     <!-- Conteúdo Principal -->
     <main class="main-content">
-      <!-- Hero Banner / Notificação de Inicialização -->
+      <!-- Hero Banner -->
       <section class="hero-card">
         <div class="hero-glow"></div>
         <div class="hero-content">
@@ -51,147 +61,167 @@
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
-            <span>Pronto para Operação</span>
+            <span>Etapa 3 — Web API & Autenticação</span>
           </div>
           <h2 class="hero-title" id="welcomeHeading">Aplicação iniciada</h2>
           <p class="hero-desc">
-            A estrutura inicial e a camada de abstração de clientes BitTorrent foram carregadas com sucesso. O sistema opera em um runtime unificado acessível localmente.
+            Comunicação com a Web API do qBittorrent via HTTP/HTTPS, persistência de configurações e tratamento de erros amigável.
           </p>
 
           <div class="quick-stats-grid">
             <div class="stat-box">
-              <span class="stat-label">Arquitetura</span>
-              <span class="stat-value">Modular (TypeScript)</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">Camada de Provedor</span>
-              <span class="stat-value">TorrentClient Interface</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">Cliente Conectado</span>
+              <span class="stat-label">Cliente BitTorrent</span>
               <span class="stat-value" id="statClientName">qBittorrent</span>
             </div>
             <div class="stat-box">
-              <span class="stat-label">Modo de Distribuição</span>
-              <span class="stat-value">Executável Unificado</span>
+              <span class="stat-label">Status da Conexão</span>
+              <span class="stat-value highlight" id="statConnectionStatus">Verificando...</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Versão qBittorrent</span>
+              <span class="stat-value" id="statAppVersion">—</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Versão Web API</span>
+              <span class="stat-value" id="statWebApiVersion">—</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Painéis de Arquitetura e Diagnóstico -->
+      <!-- Painel de Conexão e Configurações (Etapa 3) -->
       <div class="cards-grid">
-        <!-- Card: Camada de Abstração BitTorrent (Etapa 2) -->
+        <!-- Card: Formulário de Conexão com qBittorrent -->
         <div class="card glass-card">
           <div class="card-header">
             <div class="card-icon blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
             </div>
             <div>
-              <h3>Abstração TorrentClient</h3>
-              <p class="card-subtitle">Contrato desacoplado e extensível</p>
+              <h3>Configuração do qBittorrent</h3>
+              <p class="card-subtitle">Configurável por arquivo ou interface</p>
             </div>
           </div>
 
-          <div class="card-body">
-            <p class="text-secondary">
-              A interface <code class="code-tag">TorrentClient</code> define os métodos fundamentais para qualquer cliente BitTorrent sem amarrar as regras de negócio:
-            </p>
-            
-            <div class="methods-list">
-              <div class="method-item">
-                <span class="method-badge">async</span>
-                <span class="method-name">conectar()</span>
-                <span class="method-desc">Autenticação e handshake com a Web API</span>
+          <form id="formConnection" class="form-grid">
+            <div class="form-row form-row-split">
+              <div class="form-group">
+                <label for="inputHost">Endereço / Host:</label>
+                <input type="text" id="inputHost" class="form-input" placeholder="ex: 127.0.0.1 ou localhost" required>
               </div>
-              <div class="method-item">
-                <span class="method-badge">async</span>
-                <span class="method-name">listarTorrents()</span>
-                <span class="method-desc">Listagem unificada e status dos downloads</span>
-              </div>
-              <div class="method-item">
-                <span class="method-badge">async</span>
-                <span class="method-name">listarArquivos()</span>
-                <span class="method-desc">Mapeamento da árvore de arquivos e progresso</span>
-              </div>
-              <div class="method-item">
-                <span class="method-badge">async</span>
-                <span class="method-name">alterarPrioridades()</span>
-                <span class="method-desc">Controle seletivo de prioridades de download</span>
+              <div class="form-group" style="max-width: 120px;">
+                <label for="inputPort">Porta:</label>
+                <input type="number" id="inputPort" class="form-input" placeholder="8080" required>
               </div>
             </div>
 
-            <div class="architecture-note">
-              <div class="note-icon">💡</div>
-              <div class="note-text">
-                <strong>Substituição Imediata:</strong> Para alterar a implementação ou adicionar novos clientes (Transmission, Deluge), basta instanciar outra classe que implemente a interface <code class="code-tag">TorrentClient</code>.
+            <div class="form-row form-row-split">
+              <div class="form-group">
+                <label for="inputUsername">Usuário:</label>
+                <input type="text" id="inputUsername" class="form-input" placeholder="admin">
+              </div>
+              <div class="form-group">
+                <label for="inputPassword">Senha:</label>
+                <input type="password" id="inputPassword" class="form-input" placeholder="••••••••">
               </div>
             </div>
-          </div>
+
+            <div class="form-row form-row-checkboxes">
+              <label class="checkbox-container">
+                <input type="checkbox" id="inputHttps">
+                <span class="custom-checkbox"></span>
+                <span>Usar HTTPS (SSL/TLS seguro)</span>
+              </label>
+
+              <label class="checkbox-container">
+                <input type="checkbox" id="inputSaveConfig" checked>
+                <span class="custom-checkbox"></span>
+                <span>Salvar permanentemente em <code>data/config.json</code></span>
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" id="btnSalvarConfig">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                <span>Salvar Configuração</span>
+              </button>
+
+              <button type="submit" class="btn btn-primary" id="btnConectar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span id="btnConectarText">Conectar ao qBittorrent</span>
+              </button>
+            </div>
+          </form>
         </div>
 
-        <!-- Card: Status do Servidor e Diagnóstico da Conexão -->
+        <!-- Card: Status em Tempo Real e Feedback Visual -->
         <div class="card glass-card">
           <div class="card-header">
             <div class="card-icon green">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
               </svg>
             </div>
             <div>
-              <h3>Diagnóstico e Conexão</h3>
-              <p class="card-subtitle">Comunicação e endpoints ativos</p>
+              <h3>Status e Diagnóstico</h3>
+              <p class="card-subtitle">Monitoramento da Web API</p>
             </div>
           </div>
 
           <div class="card-body">
+            <!-- Box de Mensagem de Sucesso ou Erro Amigável -->
+            <div class="feedback-banner idle" id="feedbackBanner">
+              <div class="feedback-icon" id="feedbackIcon">⚡</div>
+              <div class="feedback-content">
+                <h4 id="feedbackTitle">Status do Cliente</h4>
+                <p id="feedbackDetail">Aguardando comando de conexão com o qBittorrent...</p>
+              </div>
+            </div>
+
             <div class="info-list">
               <div class="info-row">
-                <span class="info-title">Servidor Local:</span>
-                <span class="info-data" id="serverLocalUrl">http://localhost:3000</span>
+                <span class="info-title">URL do Endpoint:</span>
+                <span class="info-data" id="infoEndpoint">http://127.0.0.1:8080</span>
               </div>
               <div class="info-row">
-                <span class="info-title">API Endpoint:</span>
-                <span class="info-data"><code class="code-tag">/api/status</code></span>
+                <span class="info-title">Autenticação:</span>
+                <span class="info-data" id="infoAuth">/api/v2/auth/login</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Implementação Ativa:</span>
-                <span class="info-data highlight" id="activeImplementation">QBittorrentClient</span>
+                <span class="info-title">Arquivo de Configuração:</span>
+                <span class="info-data code-tag">data/config.json</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Estado do Cliente:</span>
-                <span class="info-data" id="clientConnectionStatus">Aguardando handshake</span>
+                <span class="info-title">Sessão Cookie (SID):</span>
+                <span class="info-data highlight" id="infoCookieStatus">Inativo</span>
               </div>
             </div>
 
             <div class="action-buttons">
-              <button class="btn btn-primary" id="btnTestApi">
+              <button class="btn btn-secondary" id="btnTestarConexao">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                 </svg>
-                <span>Verificar API</span>
+                <span>Reverificar Conexão</span>
               </button>
-              <button class="btn btn-secondary" id="btnTestClient">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                </svg>
-                <span>Testar Conexão</span>
-              </button>
-            </div>
 
-            <!-- Resposta do teste -->
-            <div class="api-response-box" id="apiResponseBox" style="display: none;">
-              <div class="response-header">
-                <span>Resposta da API</span>
-                <span class="response-time" id="apiResponseTime">0ms</span>
-              </div>
-              <pre class="response-code" id="apiResponseCode"></pre>
+              <button class="btn btn-danger" id="btnDesconectar" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <span>Desconectar</span>
+              </button>
             </div>
           </div>
         </div>
@@ -211,14 +241,15 @@
             <span class="step-name">Abstração BitTorrent</span>
             <span class="step-check">✓</span>
           </div>
-          <div class="step-pill next">
+          <div class="step-pill completed">
             <span class="step-num">3</span>
-            <span class="step-name">Conexão qBittorrent Web API</span>
-            <span class="step-check">→</span>
+            <span class="step-name">Conexão qBittorrent</span>
+            <span class="step-check">✓</span>
           </div>
-          <div class="step-pill pending">
+          <div class="step-pill next">
             <span class="step-num">4</span>
             <span class="step-name">Listagem de Torrents</span>
+            <span class="step-check">→</span>
           </div>
           <div class="step-pill pending">
             <span class="step-num">5</span>
