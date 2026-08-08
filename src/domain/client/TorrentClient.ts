@@ -8,14 +8,25 @@ export interface ConnectionStatus {
   detalhes?: string;
 }
 
+export interface BatchPriorityResult {
+  sucesso: boolean;
+  marcadosAlterados: number;
+  desmarcadosAlterados: number;
+}
+
 /**
- * Interface de abstração para clientes BitTorrent (qBittorrent, Transmission, Deluge, etc.)
+ * Interface de abstração agnóstica para clientes BitTorrent (qBittorrent, Transmission, Deluge, etc.)
  */
 export interface TorrentClient {
   /**
-   * Retorna o nome identificador do cliente (ex: 'qBittorrent', 'Transmission')
+   * Retorna o nome identificador do cliente (ex: 'qBittorrent', 'Transmission', 'Deluge')
    */
   obterNome(): string;
+
+  /**
+   * Retorna o identificador único do provedor/plugin (ex: 'qbittorrent', 'transmission')
+   */
+  obterId?(): string;
 
   /**
    * Verifica se o cliente está atualmente conectado e autenticado
@@ -56,7 +67,27 @@ export interface TorrentClient {
   ): Promise<boolean>;
 
   /**
+   * Aplica prioridades em lote separando marcados (download normal) e desmarcados (não baixar)
+   */
+  aplicarPrioridadesEmLote?(
+    torrentHash: string,
+    marcados: number[],
+    desmarcados: number[]
+  ): Promise<BatchPriorityResult>;
+
+  /**
+   * Retorna informações de diagnóstico e versões do cliente (sem acoplamento direto)
+   */
+  obterInfo?(): Record<string, any> | null;
+
+  /**
+   * Atualiza a configuração em tempo de execução
+   */
+  atualizarConfig?(config: Partial<TorrentClientConfig>): void;
+
+  /**
    * Retorna o status detalhado da conexão
    */
   obterStatusConexao(): ConnectionStatus;
 }
+

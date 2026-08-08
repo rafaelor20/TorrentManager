@@ -35,6 +35,10 @@ export class QBittorrentClient implements TorrentClient {
     return this.nome;
   }
 
+  obterId(): string {
+    return 'qbittorrent';
+  }
+
   estaConectado(): boolean {
     return this.conectado;
   }
@@ -52,6 +56,14 @@ export class QBittorrentClient implements TorrentClient {
       ...this.config,
       ...novaConfig,
     };
+  }
+
+  async aplicarPrioridadesEmLote(
+    torrentHash: string,
+    marcados: number[],
+    desmarcados: number[]
+  ): Promise<{ sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number }> {
+    return this.aplicarPrioridadesConfiguradas(torrentHash, marcados, desmarcados);
   }
 
   obterStatusConexao(): ConnectionStatus {

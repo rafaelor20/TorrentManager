@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { TorrentClient } from '../domain/client/TorrentClient.js';
-import { QBittorrentClient } from '../infra/clients/QBittorrentClient.js';
-import { TorrentClientFactory } from '../infra/clients/TorrentClientFactory.js';
+import { TorrentClientRegistry } from '../infra/providers/TorrentClientRegistry.js';
 import { TorrentClientConfig } from '../domain/models/TorrentClientConfig.js';
 import { ConfigService } from '../infra/config/ConfigService.js';
 
@@ -10,7 +9,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
 
   // Obter status geral da aplicação e do cliente
   router.get('/status', (_req: Request, res: Response) => {
-    const qbInfo = torrentClient instanceof QBittorrentClient ? torrentClient.obterInfo() : null;
+    const infoCliente = torrentClient.obterInfo ? torrentClient.obterInfo() : null;
     const configAtual = ConfigService.carregar();
 
     res.json({
@@ -18,8 +17,9 @@ export function createRouter(torrentClient: TorrentClient): Router {
       mensagem: 'Aplicação iniciada com sucesso',
       versao: '1.0.0',
       clienteAtivo: torrentClient.obterNome(),
+      clienteId: torrentClient.obterId ? torrentClient.obterId() : 'qbittorrent',
       statusConexao: torrentClient.obterStatusConexao(),
-      infoCliente: qbInfo,
+      infoCliente,
       config: {
         host: configAtual.qbittorrent.host,
         port: configAtual.qbittorrent.port,
@@ -29,7 +29,8 @@ export function createRouter(torrentClient: TorrentClient): Router {
         timeoutMs: configAtual.qbittorrent.timeoutMs,
         refreshInterval: configAtual.qbittorrent.refreshInterval ?? 10,
       },
-      clientesSuportados: TorrentClientFactory.obterClientesSuportados(),
+      clientesSuportados: TorrentClientRegistry.listarIdsProvedores(),
+      provedores: TorrentClientRegistry.listarProvedores(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -51,6 +52,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
           refreshInterval: config.qbittorrent.refreshInterval ?? 10,
         },
       },
+      provedores: TorrentClientRegistry.listarProvedores(),
     });
   });
 
@@ -76,8 +78,8 @@ export function createRouter(torrentClient: TorrentClient): Router {
 
       const salva = ConfigService.salvarQBittorrent(novoQbitConfig);
       
-      // Atualiza o cliente instanciado com as novas configurações
-      if (torrentClient instanceof QBittorrentClient) {
+      // Atualiza o cliente instanciado de forma polimórfica
+      if (torrentClient.atualizarConfig) {
         torrentClient.atualizarConfig(salva.qbittorrent);
       }
 
@@ -102,7 +104,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Conectar / Testar conexão com a Web API do qBittorrent
+  // Conectar / Testar conexão com a API do cliente BitTorrent
   router.post('/client/connect', async (req: Request, res: Response) => {
     try {
       const { host, port, username, password, useHttps, timeoutMs, refreshInterval, salvarConfig } = req.body || {};
@@ -128,12 +130,12 @@ export function createRouter(torrentClient: TorrentClient): Router {
 
       const conectado = await torrentClient.conectar(overrideConfig as TorrentClientConfig);
       const status = torrentClient.obterStatusConexao();
-      const qbInfo = torrentClient instanceof QBittorrentClient ? torrentClient.obterInfo() : null;
+      const infoCliente = torrentClient.obterInfo ? torrentClient.obterInfo() : null;
 
       res.json({
         sucesso: conectado,
         status,
-        infoCliente: qbInfo,
+        infoCliente,
         mensagem: conectado
           ? `Conexão estabelecida com sucesso ao ${torrentClient.obterNome()}!`
           : status.detalhes || 'Falha ao conectar ao cliente.',
@@ -141,7 +143,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     } catch (err: any) {
       res.status(400).json({
         sucesso: false,
-        erro: err?.message || 'Erro ao conectar ao qBittorrent',
+        erro: err?.message || `Erro ao conectar ao ${torrentClient.obterNome()}`,
         status: torrentClient.obterStatusConexao(),
       });
     }
@@ -202,7 +204,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Aplicar prioridades aos arquivos do torrent (Etapa 9)
+  // Aplicar prioridades aos arquivos do torrent de forma agnóstica (Etapa 9 & 13)
   router.post('/torrents/:hash/priority', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;
@@ -221,9 +223,10 @@ export function createRouter(torrentClient: TorrentClient): Router {
         const marcados = Array.isArray(marcadosIndices) ? marcadosIndices.map(Number) : [];
         const desmarcados = Array.isArray(desmarcadosIndices) ? desmarcadosIndices.map(Number) : [];
 
-        let resultado;
-        if (torrentClient instanceof QBittorrentClient) {
-          resultado = await torrentClient.aplicarPrioridadesConfiguradas(hash, marcados, desmarcados);
+        let resultado: { sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number };
+
+        if (torrentClient.aplicarPrioridadesEmLote) {
+          resultado = await torrentClient.aplicarPrioridadesEmLote(hash, marcados, desmarcados);
         } else {
           let okMarcados = true;
           let okDesmarcados = true;
@@ -271,3 +274,4 @@ export function createRouter(torrentClient: TorrentClient): Router {
 
   return router;
 }
+
