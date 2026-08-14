@@ -21,15 +21,23 @@ const PORT = config.server.port;
 const app = createApp(clienteAtivo);
 
 const server = app.listen(PORT, async () => {
+  const envPath = ConfigService.getEnvPath();
+  const hostExibicao = config.server.host === '0.0.0.0' ? 'localhost' : config.server.host;
+
   console.log('====================================================');
   console.log('            TORRENT MANAGER — INICIADO              ');
   console.log('====================================================');
-  console.log(`✓ Servidor web em execução: http://localhost:${PORT}`);
+  console.log(`✓ Servidor web em execução: http://${hostExibicao}:${PORT}`);
+  if (envPath) {
+    console.log(`✓ Configurações carregadas do arquivo .env: ${envPath}`);
+  } else {
+    console.log(`ℹ Porta padrão ${PORT} em uso (Defina PORT no arquivo .env na mesma pasta do executável para personalizar)`);
+  }
   console.log(`✓ Cliente BitTorrent ativo: ${clienteAtivo.obterNome()} (ID: ${clienteIdAtivo})`);
   console.log(`✓ Provedores suportados: [${TorrentClientRegistry.listarIdsProvedores().join(', ')}]`);
-  console.log(`✓ Configuração carregada de: ${ConfigService.getPath()}`);
+  console.log(`✓ Persistência JSON: ${ConfigService.getPath()}`);
   console.log(`✓ Alvo ${clienteAtivo.obterNome()}: ${config.qbittorrent.useHttps ? 'https' : 'http'}://${config.qbittorrent.host}:${config.qbittorrent.port}`);
-  console.log(`✓ Aplicação iniciada com sucesso (Camada de Plugins Ativa)!`);
+  console.log(`✓ Aplicação iniciada com sucesso!`);
   console.log('====================================================');
 
   // Tentativa inicial não bloqueante de handshake com o cliente ativo

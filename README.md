@@ -29,7 +29,34 @@ Ou em modo de desenvolvimento contínuo:
 npm run dev
 ```
 
-A interface estará disponível em [http://localhost:3000](http://localhost:3000).
+A interface estará disponível em [http://localhost:3000](http://localhost:3000) por padrão.
+
+---
+
+## ⚙️ Configuração de Portas e Variáveis (.env)
+
+Por padrão, a aplicação inicia na porta **`3000`**. Você pode configurar outra porta e outros parâmetros facilmente criando um arquivo `.env` na mesma pasta do executável ou na raiz do projeto:
+
+1. Copie o arquivo de exemplo:
+   ```bash
+   cp .env.example .env
+   ```
+2. Defina a porta desejada no arquivo `.env`:
+   ```env
+   # Porta do Servidor Web local
+   PORT=8080
+
+   # Endereço de escuta (opcional)
+   HOST=0.0.0.0
+
+   # Configurações opcionais do qBittorrent
+   QBIT_HOST=localhost
+   QBIT_PORT=8877
+   QBIT_USER=admin
+   QBIT_PASSWORD=Ozzy261220
+   ```
+
+A aplicação e o script `iniciar.bat` no pacote Windows (.exe) lerão automaticamente o arquivo `.env` e iniciarão o servidor na porta especificada!
 
 ---
 

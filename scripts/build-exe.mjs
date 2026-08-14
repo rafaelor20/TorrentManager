@@ -93,6 +93,14 @@ if (fs.existsSync(publicSrc)) {
   console.log(`✓ Interface web copiada para: release/public`);
 }
 
+// Copiar ou criar .env.example na pasta release/
+const envExampleSrc = path.join(ROOT_DIR, '.env.example');
+const envExampleDst = path.join(RELEASE_DIR, '.env.example');
+if (fs.existsSync(envExampleSrc)) {
+  fs.copyFileSync(envExampleSrc, envExampleDst);
+  console.log(`✓ Arquivo de exemplo .env.example copiado para: release/.env.example`);
+}
+
 // Copiar ou criar config.json inicial
 const configSrc = path.join(ROOT_DIR, 'data/config.json');
 const configDst = path.join(releaseData, 'config.json');
@@ -116,18 +124,30 @@ if (fs.existsSync(configSrc)) {
   console.log(`✓ Configuração padrão criada em: release/data/config.json`);
 }
 
-// Criar script iniciar.bat para Windows
+// Criar script iniciar.bat para Windows com detecção inteligente de porta no .env
 const batContent = `@echo off
 title TorrentManager - Servidor BitTorrent Unificado
 echo ========================================================
 echo               INICIANDO TORRENT MANAGER
 echo ========================================================
 echo.
-echo Abrindo o servidor em http://localhost:3000
+
+set SERVER_PORT=3000
+
+REM Lê a porta definida no arquivo .env se existir na mesma pasta do executável
+if exist "%~dp0.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%~dp0.env") do (
+        if /i "%%A"=="PORT" set SERVER_PORT=%%B
+        if /i "%%A"=="SERVER_PORT" set SERVER_PORT=%%B
+    )
+)
+
+echo Servidor iniciando na porta: %SERVER_PORT%
+echo Abrindo o navegador em: http://localhost:%SERVER_PORT%
 echo Pressione Ctrl+C nesta janela para encerrar.
 echo.
 
-start http://localhost:3000
+start http://localhost:%SERVER_PORT%
 "%~dp0TorrentManager.exe"
 pause
 `;
@@ -135,20 +155,30 @@ fs.writeFileSync(path.join(RELEASE_DIR, 'iniciar.bat'), batContent, 'utf-8');
 console.log(`✓ Script iniciar.bat gerado em release/iniciar.bat`);
 
 // Criar README com instruções
-const readmeContent = `========================================================
+const readmeContent = `================================================================
 TORRENT MANAGER — EXECUTÁVEL WINDOWS STANDALONE (.EXE)
-========================================================
+================================================================
 
 COMO EXECUTAR NO WINDOWS:
 1. Dê um duplo clique em "iniciar.bat" ou execute "TorrentManager.exe".
-2. O servidor iniciará automaticamente na porta 3000.
+2. O servidor iniciará automaticamente na porta padrão 3000.
 3. Seu navegador abrirá a interface web em: http://localhost:3000
+
+COMO ESCOLHER OUTRA PORTA (ARQUIVO .ENV):
+- Para alterar a porta (ex: para 8080, 4000 ou qualquer outra):
+  1. Copie o arquivo ".env.example" para ".env" na mesma pasta do executável (TorrentManager.exe).
+  2. Abra o arquivo ".env" com o Bloco de Notas.
+  3. Altere a linha "PORT=3000" para a porta desejada, por exemplo:
+     PORT=8080
+  4. Salve o arquivo e inicie novamente. O executável e o script iniciar.bat usarão a nova porta automaticamente!
 
 ARQUIVOS DO PACOTE PORTÁTIL:
 - TorrentManager.exe : Executável principal compilado para Windows x64.
-- iniciar.bat        : Script de inicialização rápida com abertura do navegador.
-- public/            : Arquivos da interface visual (HTML, CSS, JS).
+- iniciar.bat        : Script de inicialização rápida com detecção automática de porta.
+- .env.example       : Modelo para configurar portas e parâmetros por variáveis de ambiente.
+- public/            : Arquivos da interface visual moderna (HTML, CSS, JS).
 - data/config.json   : Persistência local de credenciais, host e porta.
+- LEIAME.txt         : Guia de instruções e comandos.
 
 REQUISITOS:
 - Windows 10 ou Windows 11 (64-bit).
@@ -156,11 +186,26 @@ REQUISITOS:
 `;
 fs.writeFileSync(path.join(RELEASE_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
 
+// Gerar arquivo compactado ZIP se o comando zip estiver disponível
+const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Windows-x64.zip');
+try {
+  if (fs.existsSync(zipOutputFile)) fs.unlinkSync(zipOutputFile);
+  execSync(`zip -r -q "${zipOutputFile}" TorrentManager.exe iniciar.bat .env.example LEIAME.txt public data`, {
+    cwd: RELEASE_DIR,
+    stdio: 'inherit',
+  });
+  console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip`);
+} catch (err) {
+  console.warn('Aviso ao gerar arquivo .zip:', err.message);
+}
+
 const stats = fs.statSync(FINAL_WIN_EXE);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 
 console.log('\n================================================================');
 console.log('✓ COMPILAÇÃO CONCLUÍDA COM 100% DE SUCESSO!');
 console.log(`✓ Executável: release/TorrentManager.exe (${tamanhoMB} MB)`);
-console.log(`✓ Pasta de distribuição pronta para uso e compactação: release/`);
+console.log(`✓ Pacote ZIP: release/TorrentManager-Windows-x64.zip`);
+console.log(`✓ Porta padrão: 3000 (configurável via arquivo .env na mesma pasta)`);
+console.log(`✓ Pasta de distribuição pronta para uso: release/`);
 console.log('================================================================\n');
