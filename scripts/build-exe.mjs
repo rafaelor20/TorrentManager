@@ -38,13 +38,17 @@ console.log(`✓ Bundle CJS gerado: ${BUNDLE_FILE}\n`);
 
 // 4. Gerar Blob SEA (Single Executable Application)
 console.log('Passo 3/5: Gerando Blob de aplicação executável pelo Node.js...');
-if (!fs.existsSync(SEA_CONFIG)) {
-  fs.writeFileSync(
-    SEA_CONFIG,
-    JSON.stringify({ main: 'dist/bundle.cjs', output: 'dist/sea-prep.blob', disableExperimentalSEAWarning: true }, null, 2),
-    'utf-8'
-  );
-}
+fs.writeFileSync(
+  SEA_CONFIG,
+  JSON.stringify({
+    main: 'dist/bundle.cjs',
+    output: 'dist/sea-prep.blob',
+    disableExperimentalSEAWarning: true,
+    useCodeCache: false,
+    useSnapshot: false,
+  }, null, 2),
+  'utf-8'
+);
 
 execSync(`node --experimental-sea-config "${SEA_CONFIG}"`, {
   stdio: 'inherit',
@@ -52,18 +56,21 @@ execSync(`node --experimental-sea-config "${SEA_CONFIG}"`, {
 });
 console.log(`✓ Blob binário gerado: ${BLOB_FILE}\n`);
 
-// 5. Obter executável base do Windows se necessário
-console.log('Passo 4/5: Preparando binário base Windows x64...');
-if (!fs.existsSync(BASE_WIN_EXE)) {
-  console.log('Baixando executável base oficial do Node.js para Windows x64...');
-  const downloadCmd = `curl -sL https://nodejs.org/dist/v22.13.1/win-x64/node.exe -o "${BASE_WIN_EXE}"`;
+// 5. Obter executável base do Windows correspondente à versão exata do Node.js
+const nodeVersion = process.version;
+const versionedWinExe = path.join(BIN_DIR, `node-win-x64-${nodeVersion}.exe`);
+
+console.log(`Passo 4/5: Preparando binário base Windows x64 (${nodeVersion})...`);
+if (!fs.existsSync(versionedWinExe)) {
+  console.log(`Baixando executável base oficial do Node.js ${nodeVersion} para Windows x64...`);
+  const downloadCmd = `curl -sL "https://nodejs.org/dist/${nodeVersion}/win-x64/node.exe" -o "${versionedWinExe}"`;
   execSync(downloadCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 }
-console.log(`✓ Executável base pronto em: ${BASE_WIN_EXE}\n`);
+console.log(`✓ Executável base pronto em: ${versionedWinExe}\n`);
 
 // 6. Injetar Blob no executável via postject
 console.log('Passo 5/5: Injetando código e recursos no TorrentManager.exe via postject...');
-fs.copyFileSync(BASE_WIN_EXE, FINAL_WIN_EXE);
+fs.copyFileSync(versionedWinExe, FINAL_WIN_EXE);
 
 const postjectCmd = [
   'npx postject',

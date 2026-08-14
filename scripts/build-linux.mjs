@@ -37,13 +37,17 @@ console.log(`✓ Bundle CJS gerado: ${BUNDLE_FILE}\n`);
 
 // 4. Gerar Blob SEA (Single Executable Application)
 console.log('Passo 3/5: Gerando Blob de aplicação executável pelo Node.js...');
-if (!fs.existsSync(SEA_CONFIG)) {
-  fs.writeFileSync(
-    SEA_CONFIG,
-    JSON.stringify({ main: 'dist/bundle.cjs', output: 'dist/sea-prep.blob', disableExperimentalSEAWarning: true }, null, 2),
-    'utf-8'
-  );
-}
+fs.writeFileSync(
+  SEA_CONFIG,
+  JSON.stringify({
+    main: 'dist/bundle.cjs',
+    output: 'dist/sea-prep.blob',
+    disableExperimentalSEAWarning: true,
+    useCodeCache: false,
+    useSnapshot: false,
+  }, null, 2),
+  'utf-8'
+);
 
 execSync(`node --experimental-sea-config "${SEA_CONFIG}"`, {
   stdio: 'inherit',
