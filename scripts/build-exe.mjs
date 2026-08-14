@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { ZipArchive } from 'archiver';
 
 const ROOT_DIR = process.cwd();
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
@@ -114,7 +115,7 @@ if (fs.existsSync(configSrc)) {
       host: 'localhost',
       port: 8877,
       username: 'admin',
-      password: 'Ozzy261220',
+      password: 'password',
       useHttps: false,
       timeoutMs: 5000,
       refreshInterval: 10,
@@ -186,26 +187,66 @@ REQUISITOS:
 `;
 fs.writeFileSync(path.join(RELEASE_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
 
-// Gerar arquivo compactado ZIP se o comando zip estiver disponível
+// 8. Gerar arquivo compactado ZIP usando archiver (100% puro Node.js)
+console.log('Compactando pacote de distribuição para .zip...');
 const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Windows-x64.zip');
-try {
-  if (fs.existsSync(zipOutputFile)) fs.unlinkSync(zipOutputFile);
-  execSync(`zip -r -q "${zipOutputFile}" TorrentManager.exe iniciar.bat .env.example LEIAME.txt public data`, {
-    cwd: RELEASE_DIR,
-    stdio: 'inherit',
+
+const filesToZip = ['TorrentManager.exe', 'iniciar.bat', '.env.example', 'LEIAME.txt', 'public', 'data'];
+
+await new Promise((resolve, reject) => {
+  const output = fs.createWriteStream(zipOutputFile);
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+
+  output.on('close', () => {
+    console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip\n`);
+    resolve();
   });
-  console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip`);
-} catch (err) {
-  console.warn('Aviso ao gerar arquivo .zip:', err.message);
+
+  archive.on('error', (err) => reject(err));
+  archive.pipe(output);
+
+  for (const item of filesToZip) {
+    const itemPath = path.join(RELEASE_DIR, item);
+    if (!fs.existsSync(itemPath)) continue;
+    const stats = fs.statSync(itemPath);
+    if (stats.isDirectory()) {
+      archive.directory(itemPath, item);
+    } else {
+      archive.file(itemPath, { name: item, mode: stats.mode });
+    }
+  }
+
+  archive.finalize();
+});
+
+// 9. Limpeza de todos os intermediários e temporários, mantendo apenas arquivos .zip finais
+console.log('Realizando limpeza de arquivos temporários e intermediários...');
+
+// Remove diretórios intermediários dist/ e bin/
+[DIST_DIR, BIN_DIR].forEach(dir => {
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    console.log(`✓ Removido diretório temporário: ${path.basename(dir)}/`);
+  }
+});
+
+// Remove arquivos e pastas soltas em release/ que não sejam .zip
+if (fs.existsSync(RELEASE_DIR)) {
+  const entries = fs.readdirSync(RELEASE_DIR);
+  for (const entry of entries) {
+    if (!entry.endsWith('.zip')) {
+      const fullPath = path.join(RELEASE_DIR, entry);
+      fs.rmSync(fullPath, { recursive: true, force: true });
+    }
+  }
+  console.log('✓ Pasta release/ limpa (preservados apenas os arquivos .zip)');
 }
 
-const stats = fs.statSync(FINAL_WIN_EXE);
+const stats = fs.statSync(zipOutputFile);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 
 console.log('\n================================================================');
-console.log('✓ COMPILAÇÃO CONCLUÍDA COM 100% DE SUCESSO!');
-console.log(`✓ Executável: release/TorrentManager.exe (${tamanhoMB} MB)`);
-console.log(`✓ Pacote ZIP: release/TorrentManager-Windows-x64.zip`);
-console.log(`✓ Porta padrão: 3000 (configurável via arquivo .env na mesma pasta)`);
-console.log(`✓ Pasta de distribuição pronta para uso: release/`);
+console.log('✓ BUILD WINDOWS CONCLUÍDO COM SUCESSO!');
+console.log(`✓ Pacote final: release/TorrentManager-Windows-x64.zip (${tamanhoMB} MB)`);
+console.log('✓ Todos os arquivos temporários e intermediários foram limpos.');
 console.log('================================================================\n');

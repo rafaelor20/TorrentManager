@@ -1,10 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { ZipArchive } from 'archiver';
 
 const ROOT_DIR = process.cwd();
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const RELEASE_DIR = path.join(ROOT_DIR, 'release');
+const BIN_DIR = path.join(ROOT_DIR, 'bin');
 const BUNDLE_FILE = path.join(DIST_DIR, 'bundle.cjs');
 const BLOB_FILE = path.join(DIST_DIR, 'sea-prep.blob');
 const FINAL_LINUX_BIN = path.join(RELEASE_DIR, 'TorrentManager');
@@ -70,7 +72,7 @@ execSync(postjectCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 fs.chmodSync(FINAL_LINUX_BIN, 0o755);
 console.log(`✓ Executável Linux criado com sucesso: ${FINAL_LINUX_BIN}\n`);
 
-// 7. Preparar pacote portátil em release/
+// 7. Preparar arquivos auxiliares em release/
 console.log('Preparando arquivos auxiliares na pasta release/...');
 const releasePublic = path.join(RELEASE_DIR, 'public');
 const releaseData = path.join(RELEASE_DIR, 'data');
@@ -184,25 +186,64 @@ ARQUIVOS DO PACOTE:
 `;
 fs.writeFileSync(path.join(RELEASE_DIR, 'LEIAME-LINUX.txt'), readmeContent, 'utf-8');
 
-// Gerar tar.gz
-const tarOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Linux-x64.tar.gz');
-try {
-  if (fs.existsSync(tarOutputFile)) fs.unlinkSync(tarOutputFile);
-  execSync(`tar -czf "${tarOutputFile}" TorrentManager iniciar.sh .env.example LEIAME-LINUX.txt public data`, {
-    cwd: RELEASE_DIR,
-    stdio: 'inherit',
+// 8. Gerar arquivo compactado ZIP usando archiver (100% puro Node.js, sem dependência do utilitário zip do SO)
+console.log('Compactando pacote de distribuição para .zip...');
+const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Linux-x64.zip');
+
+const filesToZip = ['TorrentManager', 'iniciar.sh', '.env.example', 'LEIAME-LINUX.txt', 'public', 'data'];
+
+await new Promise((resolve, reject) => {
+  const output = fs.createWriteStream(zipOutputFile);
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+
+  output.on('close', () => {
+    console.log(`✓ Pacote compactado gerado: release/TorrentManager-Linux-x64.zip\n`);
+    resolve();
   });
-  console.log(`✓ Pacote compactado gerado: release/TorrentManager-Linux-x64.tar.gz`);
-} catch (err) {
-  console.warn('Aviso ao gerar arquivo .tar.gz:', err.message);
+
+  archive.on('error', (err) => reject(err));
+  archive.pipe(output);
+
+  for (const item of filesToZip) {
+    const itemPath = path.join(RELEASE_DIR, item);
+    if (!fs.existsSync(itemPath)) continue;
+    const stats = fs.statSync(itemPath);
+    if (stats.isDirectory()) {
+      archive.directory(itemPath, item);
+    } else {
+      archive.file(itemPath, { name: item, mode: stats.mode });
+    }
+  }
+
+  archive.finalize();
+});
+
+// 9. Limpeza de todos os arquivos temporários e intermediários, mantendo apenas .zip
+console.log('Realizando limpeza de arquivos temporários e intermediários...');
+
+[DIST_DIR, BIN_DIR].forEach(dir => {
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    console.log(`✓ Removido diretório temporário: ${path.basename(dir)}/`);
+  }
+});
+
+if (fs.existsSync(RELEASE_DIR)) {
+  const entries = fs.readdirSync(RELEASE_DIR);
+  for (const entry of entries) {
+    if (!entry.endsWith('.zip')) {
+      const fullPath = path.join(RELEASE_DIR, entry);
+      fs.rmSync(fullPath, { recursive: true, force: true });
+    }
+  }
+  console.log('✓ Pasta release/ limpa (preservados apenas os arquivos .zip)');
 }
 
-const stats = fs.statSync(FINAL_LINUX_BIN);
+const stats = fs.statSync(zipOutputFile);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 
 console.log('\n================================================================');
-console.log('✓ COMPILAÇÃO LINUX CONCLUÍDA COM SUCESSO!');
-console.log(`✓ Executável: release/TorrentManager (${tamanhoMB} MB)`);
-console.log(`✓ Pacote TAR: release/TorrentManager-Linux-x64.tar.gz`);
-console.log(`✓ Pasta de distribuição pronta para uso: release/`);
+console.log('✓ BUILD LINUX CONCLUÍDO COM SUCESSO!');
+console.log(`✓ Pacote final: release/TorrentManager-Linux-x64.zip (${tamanhoMB} MB)`);
+console.log('✓ Todos os arquivos temporários e intermediários foram limpos.');
 console.log('================================================================\n');
