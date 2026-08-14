@@ -405,6 +405,26 @@
             </table>
           </div>
         </div>
+
+        <!-- Menu de Contexto para Exibir/Ocultar Colunas com o Botão Direito -->
+        <div class="custom-context-menu" id="filesContextMenu" style="display: none;">
+          <div class="context-menu-header">
+            <span class="context-menu-title">Colunas Visíveis</span>
+            <span class="context-menu-subtitle">Alternar com botão esquerdo</span>
+          </div>
+          <div class="context-menu-items" id="filesContextMenuItems">
+            <!-- Itens de seleção de coluna gerados dinamicamente via JS -->
+          </div>
+          <div class="context-menu-divider"></div>
+          <button type="button" class="context-menu-action-btn" id="btnCtxShowAllCols">
+            <span class="ctx-btn-icon">👁</span>
+            <span>Exibir Todas as Colunas</span>
+          </button>
+          <button type="button" class="context-menu-action-btn" id="btnCtxResetCols">
+            <span class="ctx-btn-icon">⟲</span>
+            <span>Restaurar Padrão de Colunas</span>
+          </button>
+        </div>
       </section>
 
       <!-- Painel de Conexão e Configurações (Etapa 3) -->

@@ -5,6 +5,7 @@
  * - Ordenação Inteligente por Coluna (Nome, Caminho, Tamanho, Prioridade, Progresso, #)
  * - Resize Dinâmico de Largura das Colunas com persistência local
  * - Reordenação de Posição de Colunas via Arrastar e Soltar (Drag & Drop)
+ * - Menu de Contexto (Botão Direito) para Exibir / Ocultar Colunas
  * - Pesquisa Instantânea Pré-indexada e Seleção em Massa
  */
 
@@ -16,14 +17,30 @@ import { setFeedback } from './diagnostics.js';
 
 const ROW_HEIGHT = 44; // Altura fixa de cada linha em pixels
 const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport
+
 const LOCAL_STORAGE_WIDTHS_KEY = 'torrentmanager_files_col_widths';
 const LOCAL_STORAGE_ORDER_KEY = 'torrentmanager_files_col_order';
+const LOCAL_STORAGE_HIDDEN_KEY = 'torrentmanager_files_hidden_cols';
+
+export const COLUNAS_INFO = {
+  check: { label: 'Marcar', tag: 'Checkbox', defaultWidth: 54, minWidth: 44 },
+  index: { label: '# Índice', tag: 'Índice', defaultWidth: 60, minWidth: 45 },
+  name: { label: 'Nome do Arquivo', tag: 'Texto', defaultWidth: 320, minWidth: 140 },
+  path: { label: 'Caminho Completo', tag: 'Texto', defaultWidth: 360, minWidth: 140 },
+  size: { label: 'Tamanho', tag: 'Bytes', defaultWidth: 120, minWidth: 80 },
+  priority: { label: 'Prioridade Atual', tag: 'Status', defaultWidth: 150, minWidth: 110 },
+  progress: { label: 'Progresso', tag: 'Barra', defaultWidth: 140, minWidth: 100 },
+};
 
 let scrollRafId = null;
 
 // ==========================================
 // 1. GERENCIAMENTO DE ESTADO E RESUMO
 // ==========================================
+
+export function obterColunasVisiveis() {
+  return state.columnOrder.filter((colId) => !state.hiddenColumns.has(colId));
+}
 
 export function atualizarResumoSelecao() {
   const filesSelectionBadge = document.getElementById('filesSelectionBadge');
@@ -82,7 +99,6 @@ export function alterarOrdenacao(colunaId) {
     state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
   } else {
     state.sortColumn = colunaId;
-    // Padrão desc para tamanho e progresso; asc para os demais
     state.sortDirection = (colunaId === 'size' || colunaId === 'progress') ? 'desc' : 'asc';
   }
 
@@ -306,7 +322,8 @@ export function renderizarTabelaArquivosVirtualizada() {
 
   const totalOriginal = state.todosArquivosDoTorrent.length;
   const totalFiltrado = state.arquivosFiltradosAtuais.length;
-  const colCount = state.columnOrder.length || 7;
+  const colunasVisiveis = obterColunasVisiveis();
+  const colCount = Math.max(1, colunasVisiveis.length);
 
   if (state.termoBuscaAtual !== '') {
     if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
@@ -352,7 +369,7 @@ export function renderizarTabelaArquivosVirtualizada() {
     fragment.appendChild(spacerTop);
   }
 
-  // Renderiza itens visíveis de acordo com a ordem dinâmica de colunas
+  // Renderiza itens visíveis de acordo com as colunas ativas e ordenadas
   for (let i = startIndex; i < endIndex; i++) {
     const f = state.arquivosFiltradosAtuais[i];
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : i);
@@ -362,7 +379,7 @@ export function renderizarTabelaArquivosVirtualizada() {
     tr.className = `torrent-file-row ${isSelected ? 'checked' : ''}`;
     tr.dataset.index = fileIndex;
 
-    const rowCellsHtml = state.columnOrder.map((colId) => gerarCelula(colId, f, fileIndex, isSelected)).join('');
+    const rowCellsHtml = colunasVisiveis.map((colId) => gerarCelula(colId, f, fileIndex, isSelected)).join('');
     tr.innerHTML = rowCellsHtml;
 
     fragment.appendChild(tr);
@@ -430,7 +447,7 @@ function initColumnResizers() {
     const colId = th.dataset.col;
     const startX = e.clientX;
     const startWidth = th.offsetWidth;
-    const minWidth = colId === 'check' ? 44 : colId === 'index' ? 45 : 75;
+    const minWidth = COLUNAS_INFO[colId]?.minWidth || 60;
 
     resizer.classList.add('is-active');
     document.body.classList.add('is-col-resizing');
@@ -463,21 +480,12 @@ function initColumnResizers() {
     if (!th) return;
 
     const colId = th.dataset.col;
-    const defaultWidths = {
-      check: 54,
-      index: 60,
-      name: 320,
-      path: 360,
-      size: 120,
-      priority: 150,
-      progress: 140,
-    };
+    const defaultWidth = COLUNAS_INFO[colId]?.defaultWidth || 150;
 
-    const defaultWidth = defaultWidths[colId] || 150;
     th.style.width = `${defaultWidth}px`;
     state.columnWidths[colId] = defaultWidth;
     salvarLargurasColunas();
-    mostrarToast('Coluna Ajustada', `Largura padrão restaurada para a coluna.`, 'info');
+    mostrarToast('Coluna Ajustada', `Largura padrão restaurada para "${COLUNAS_INFO[colId]?.label || colId}".`, 'info');
   });
 }
 
@@ -516,6 +524,7 @@ function renderizarOrdemColunasHeader() {
     const th = thMap[colId];
     if (th) {
       headerRow.appendChild(th);
+      th.style.display = state.hiddenColumns.has(colId) ? 'none' : '';
     }
   });
 
@@ -612,7 +621,181 @@ function initColumnReordering() {
 }
 
 // ==========================================
-// 7. SELEÇÃO E APLICAÇÃO DE PRIORIDADES
+// 7. MENU DE CONTEXTO (EXIBIR / OCULTAR COLUNAS)
+// ==========================================
+
+function carregarColunasOcultas() {
+  try {
+    const salvas = localStorage.getItem(LOCAL_STORAGE_HIDDEN_KEY);
+    if (salvas) {
+      const arr = JSON.parse(salvas);
+      if (Array.isArray(arr)) {
+        state.hiddenColumns = new Set(arr);
+      }
+    }
+  } catch {}
+}
+
+function salvarColunasOcultas() {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_HIDDEN_KEY, JSON.stringify(Array.from(state.hiddenColumns)));
+  } catch {}
+}
+
+export function alternarVisibilidadeColuna(colId) {
+  const isOculta = state.hiddenColumns.has(colId);
+
+  if (isOculta) {
+    state.hiddenColumns.delete(colId);
+  } else {
+    // Garante que pelo menos 1 coluna permaneça sempre visível
+    const visiveis = obterColunasVisiveis();
+    if (visiveis.length <= 1) {
+      mostrarToast('Aviso', 'Pelo menos uma coluna deve permanecer visível na tabela.', 'error');
+      return;
+    }
+    state.hiddenColumns.add(colId);
+  }
+
+  salvarColunasOcultas();
+  renderizarOrdemColunasHeader();
+  renderizarItensMenuContexto();
+  renderizarTabelaArquivosVirtualizada();
+
+  const info = COLUNAS_INFO[colId];
+  const acaoStr = isOculta ? 'exibida' : 'ocultada';
+  mostrarToast('Coluna Atualizada', `Coluna "${info?.label || colId}" foi ${acaoStr}.`, 'info');
+}
+
+export function exibirTodasColunas() {
+  state.hiddenColumns.clear();
+  salvarColunasOcultas();
+  renderizarOrdemColunasHeader();
+  renderizarItensMenuContexto();
+  renderizarTabelaArquivosVirtualizada();
+  mostrarToast('Colunas Restauradas', 'Todas as 7 colunas estão visíveis.', 'success');
+}
+
+export function restaurarPadraoColunas() {
+  state.columnOrder = ['check', 'index', 'name', 'path', 'size', 'priority', 'progress'];
+  state.columnWidths = {};
+  state.hiddenColumns.clear();
+
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_ORDER_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_WIDTHS_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_HIDDEN_KEY);
+  } catch {}
+
+  renderizarOrdemColunasHeader();
+  aplicarLargurasColunas();
+  renderizarItensMenuContexto();
+  renderizarTabelaArquivosVirtualizada();
+  mostrarToast('Padrão Restaurado', 'Ordem, larguras e visibilidade das colunas foram redefinidas.', 'info');
+}
+
+function renderizarItensMenuContexto() {
+  const container = document.getElementById('filesContextMenuItems');
+  if (!container) return;
+
+  const visiveisCount = obterColunasVisiveis().length;
+
+  container.innerHTML = state.columnOrder.map((colId) => {
+    const info = COLUNAS_INFO[colId] || { label: colId, tag: '' };
+    const isVisible = !state.hiddenColumns.has(colId);
+    const isLastVisible = isVisible && visiveisCount === 1;
+
+    return `
+      <div class="context-menu-item ${isVisible ? 'is-visible' : ''} ${isLastVisible ? 'is-disabled' : ''}" data-col="${colId}" title="${isLastVisible ? 'Não é possível ocultar a única coluna visível' : 'Clique para alternar visibilidade'}">
+        <div class="context-menu-item-left">
+          <span class="ctx-check-box">${isVisible ? '✓' : ''}</span>
+          <span>${info.label}</span>
+        </div>
+        <span class="context-menu-item-tag">${info.tag}</span>
+      </div>
+    `;
+  }).join('');
+
+  // Listeners para os itens do menu
+  container.querySelectorAll('.context-menu-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const colId = item.dataset.col;
+      if (colId) {
+        alternarVisibilidadeColuna(colId);
+      }
+    });
+  });
+}
+
+function initFilesContextMenu() {
+  carregarColunasOcultas();
+
+  const filesCard = document.querySelector('.files-card') || document.getElementById('filesTable');
+  const filesTable = document.getElementById('filesTable');
+  const contextMenu = document.getElementById('filesContextMenu');
+  const btnShowAll = document.getElementById('btnCtxShowAllCols');
+  const btnReset = document.getElementById('btnCtxResetCols');
+
+  if (!contextMenu || !filesTable) return;
+
+  // Abre menu no botão direito (contextmenu)
+  const openContextMenu = (e) => {
+    e.preventDefault();
+
+    renderizarItensMenuContexto();
+
+    const menuWidth = 260;
+    const menuHeight = 340;
+    let posX = e.clientX;
+    let posY = e.clientY;
+
+    if (posX + menuWidth > window.innerWidth) {
+      posX = window.innerWidth - menuWidth - 12;
+    }
+    if (posY + menuHeight > window.innerHeight) {
+      posY = window.innerHeight - menuHeight - 12;
+    }
+
+    contextMenu.style.left = `${Math.max(10, posX)}px`;
+    contextMenu.style.top = `${Math.max(10, posY)}px`;
+    contextMenu.style.display = 'block';
+  };
+
+  filesTable.addEventListener('contextmenu', openContextMenu);
+  const scrollArea = document.getElementById('filesScrollArea');
+  if (scrollArea) scrollArea.addEventListener('contextmenu', openContextMenu);
+  const metaBar = document.querySelector('.table-meta-bar');
+  if (metaBar) metaBar.addEventListener('contextmenu', openContextMenu);
+
+  // Fecha menu ao clicar fora
+  document.addEventListener('click', (e) => {
+    if (contextMenu.style.display !== 'none' && !contextMenu.contains(e.target)) {
+      contextMenu.style.display = 'none';
+    }
+  });
+
+  // Fecha menu com a tecla Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && contextMenu.style.display !== 'none') {
+      contextMenu.style.display = 'none';
+    }
+  });
+
+  // Ações do rodapé do menu de contexto
+  btnShowAll?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exibirTodasColunas();
+  });
+
+  btnReset?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    restaurarPadraoColunas();
+  });
+}
+
+// ==========================================
+// 8. SELEÇÃO E APLICAÇÃO DE PRIORIDADES
 // ==========================================
 
 export async function selecionarTorrent(torrent) {
@@ -651,7 +834,9 @@ export async function selecionarTorrent(torrent) {
   if (filesCountText) filesCountText.textContent = 'Carregando arquivos do torrent...';
   if (searchResultCount) searchResultCount.textContent = 'Carregando lista...';
 
-  const colCount = state.columnOrder.length || 7;
+  const colunasVisiveis = obterColunasVisiveis();
+  const colCount = Math.max(1, colunasVisiveis.length);
+
   if (filesTableBody) {
     filesTableBody.innerHTML = `
       <tr class="empty-state-row">
@@ -810,7 +995,7 @@ export async function salvarPrioridades() {
 }
 
 // ==========================================
-// 8. INICIALIZAÇÃO DE LISTENERS
+// 9. INICIALIZAÇÃO DE LISTENERS
 // ==========================================
 
 export function initFilesManager() {
@@ -828,13 +1013,13 @@ export function initFilesManager() {
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const headerRow = document.getElementById('filesTableHeaderRow');
 
-  // Inicializa Resizers e Drag & Drop de Colunas
+  // Inicializa Resizers, Drag & Drop e Menu de Contexto
   initColumnResizers();
   initColumnReordering();
+  initFilesContextMenu();
 
   // Listener de clique nos cabeçalhos para ordenação
   headerRow?.addEventListener('click', (e) => {
-    // Não dispara ordenação se o usuário clicou no handle de redimensionamento
     if (e.target.closest('.col-resizer')) return;
 
     const th = e.target.closest('th.sortable-th');
