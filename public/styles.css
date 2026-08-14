@@ -949,9 +949,167 @@ body {
   color: var(--text-muted);
 }
 
-.th-file-index {
-  width: 50px;
+.files-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.files-table th {
+  position: relative;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.files-table th.sortable-th {
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.files-table th.sortable-th:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: #fff;
+}
+
+.th-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.th-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th-file-check .th-content {
+  justify-content: center;
+}
+
+.th-file-index .th-content {
+  justify-content: center;
+}
+
+.sort-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sortable-th:hover .sort-arrow {
+  opacity: 0.8;
+  color: var(--accent-cyan);
+}
+
+.sortable-th.sorted-asc .sort-arrow,
+.sortable-th.sorted-desc .sort-arrow {
+  opacity: 1;
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+/* Handle de Resize de Coluna */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  z-index: 15;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.col-resizer::after {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 60%;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 1px;
+  transition: background 0.15s ease, height 0.15s ease;
+}
+
+.col-resizer:hover::after,
+.col-resizer.is-active::after {
+  background: var(--accent-cyan);
+  height: 90%;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+}
+
+body.is-col-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* Drag & Drop para Reordenação de Colunas */
+.files-table th.draggable-col {
+  cursor: grab;
+}
+
+.files-table th.draggable-col:active {
+  cursor: grabbing;
+}
+
+.files-table th.is-dragging {
+  opacity: 0.4;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.files-table th.drag-over-left {
+  box-shadow: inset 3px 0 0 0 var(--accent-cyan);
+}
+
+.files-table th.drag-over-right {
+  box-shadow: inset -3px 0 0 0 var(--accent-cyan);
+}
+
+.th-file-check {
+  width: 54px;
+  min-width: 44px;
   text-align: center;
+}
+
+.th-file-index {
+  width: 60px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.th-file-name {
+  width: 320px;
+  min-width: 140px;
+}
+
+.th-file-path {
+  width: 360px;
+  min-width: 140px;
+}
+
+.th-file-size {
+  width: 120px;
+  min-width: 80px;
+}
+
+.th-file-prio {
+  width: 150px;
+  min-width: 110px;
+}
+
+.th-file-progress {
+  width: 140px;
+  min-width: 100px;
 }
 
 .cell-file-index {
@@ -962,7 +1120,7 @@ body {
 }
 
 .cell-file-name {
-  max-width: 300px;
+  overflow: hidden;
 }
 
 .file-name-text {
@@ -975,7 +1133,7 @@ body {
 }
 
 .cell-file-path {
-  max-width: 360px;
+  overflow: hidden;
 }
 
 .file-path-text {

@@ -1,6 +1,11 @@
 /**
  * Componente do Gerenciador de Arquivos do Torrent
- * Inclui: Virtualização (Windowing DOM), Pesquisa Instantânea, Seleção em Massa e Aplicação de Prioridades
+ * Recursos:
+ * - Virtualização de Alto Desempenho (Windowing DOM a 60 FPS para 100.000+ arquivos)
+ * - Ordenação Inteligente por Coluna (Nome, Caminho, Tamanho, Prioridade, Progresso, #)
+ * - Resize Dinâmico de Largura das Colunas com persistência local
+ * - Reordenação de Posição de Colunas via Arrastar e Soltar (Drag & Drop)
+ * - Pesquisa Instantânea Pré-indexada e Seleção em Massa
  */
 
 import { state } from '../state.js';
@@ -10,10 +15,16 @@ import { mostrarToast } from './toast.js';
 import { setFeedback } from './diagnostics.js';
 
 const ROW_HEIGHT = 44; // Altura fixa de cada linha em pixels
-const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport para 60 FPS
+const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport
+const LOCAL_STORAGE_WIDTHS_KEY = 'torrentmanager_files_col_widths';
+const LOCAL_STORAGE_ORDER_KEY = 'torrentmanager_files_col_order';
+
 let scrollRafId = null;
 
-// Atualiza o resumo visual de contagem e tamanho dos arquivos marcados
+// ==========================================
+// 1. GERENCIAMENTO DE ESTADO E RESUMO
+// ==========================================
+
 export function atualizarResumoSelecao() {
   const filesSelectionBadge = document.getElementById('filesSelectionBadge');
   const selectionSummaryCount = document.getElementById('selectionSummaryCount');
@@ -41,7 +52,6 @@ export function atualizarResumoSelecao() {
   }
 }
 
-// Alterna o estado de seleção de um arquivo individual
 export function alternarSelecaoArquivo(index, forcarEstado = null) {
   const isMarcado = forcarEstado !== null
     ? forcarEstado
@@ -53,7 +63,6 @@ export function alternarSelecaoArquivo(index, forcarEstado = null) {
     state.arquivosSelecionadosIndices.delete(index);
   }
 
-  // Atualiza a linha no DOM se estiver visível no viewport
   const tr = document.querySelector(`.torrent-file-row[data-index="${index}"]`);
   if (tr) {
     tr.classList.toggle('checked', isMarcado);
@@ -64,7 +73,96 @@ export function alternarSelecaoArquivo(index, forcarEstado = null) {
   atualizarResumoSelecao();
 }
 
-// Filtra arquivos por termo de busca e status de prioridade
+// ==========================================
+// 2. ORDENAÇÃO DE ARQUIVOS (SORTING)
+// ==========================================
+
+export function alterarOrdenacao(colunaId) {
+  if (state.sortColumn === colunaId) {
+    state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortColumn = colunaId;
+    // Padrão desc para tamanho e progresso; asc para os demais
+    state.sortDirection = (colunaId === 'size' || colunaId === 'progress') ? 'desc' : 'asc';
+  }
+
+  atualizarIndicadoresOrdenacaoUI();
+  filtrarArquivosInstantaneamente();
+}
+
+function atualizarIndicadoresOrdenacaoUI() {
+  document.querySelectorAll('#filesTableHeaderRow th').forEach((th) => {
+    const colId = th.dataset.col;
+    const arrow = th.querySelector('.sort-arrow');
+    const isCurrent = state.sortColumn === colId;
+
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (arrow) {
+      if (isCurrent) {
+        th.classList.add(state.sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        arrow.textContent = state.sortDirection === 'asc' ? '▲' : '▼';
+      } else {
+        arrow.textContent = '↕';
+      }
+    }
+  });
+}
+
+function ordenarListaDeArquivos(lista) {
+  if (!lista || lista.length <= 1) return lista;
+
+  const col = state.sortColumn;
+  const isAsc = state.sortDirection === 'asc';
+  const mult = isAsc ? 1 : -1;
+
+  return [...lista].sort((a, b) => {
+    switch (col) {
+      case 'name': {
+        const nomeA = a.name || a.path || '';
+        const nomeB = b.name || b.path || '';
+        return nomeA.localeCompare(nomeB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
+      }
+      case 'path': {
+        const pathA = a.path || a.name || '';
+        const pathB = b.path || b.name || '';
+        return pathA.localeCompare(pathB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
+      }
+      case 'size': {
+        const sizeA = a.size || 0;
+        const sizeB = b.size || 0;
+        return (sizeA - sizeB) * mult;
+      }
+      case 'priority': {
+        const prioA = Number(a.priority ?? 1);
+        const prioB = Number(b.priority ?? 1);
+        return (prioA - prioB) * mult;
+      }
+      case 'progress': {
+        const progA = Number(a.progress || 0);
+        const progB = Number(b.progress || 0);
+        return (progA - progB) * mult;
+      }
+      case 'check': {
+        const indexA = a._fileIndex !== undefined ? a._fileIndex : a.index;
+        const indexB = b._fileIndex !== undefined ? b._fileIndex : b.index;
+        const checkA = state.arquivosSelecionadosIndices.has(indexA) ? 1 : 0;
+        const checkB = state.arquivosSelecionadosIndices.has(indexB) ? 1 : 0;
+        return (checkA - checkB) * mult;
+      }
+      case 'index':
+      default: {
+        const idxA = a._fileIndex !== undefined ? a._fileIndex : (a.index || 0);
+        const idxB = b._fileIndex !== undefined ? b._fileIndex : (b.index || 0);
+        return (idxA - idxB) * mult;
+      }
+    }
+  });
+}
+
+// ==========================================
+// 3. FILTRAGEM & PESQUISA INSTANTÂNEA
+// ==========================================
+
 export function obterArquivosVisiveis() {
   if (!state.todosArquivosDoTorrent || state.todosArquivosDoTorrent.length === 0) {
     return [];
@@ -78,7 +176,7 @@ export function obterArquivosVisiveis() {
   const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
   const apenasSelecionados = Boolean(filterOnlySelected?.checked);
 
-  return state.todosArquivosDoTorrent.filter((f) => {
+  const filtrados = state.todosArquivosDoTorrent.filter((f) => {
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
 
     // 1. Filtro: Ocultar ignorados (priority === 0)
@@ -101,9 +199,10 @@ export function obterArquivosVisiveis() {
 
     return true;
   });
+
+  return ordenarListaDeArquivos(filtrados);
 }
 
-// Filtra arquivos e renderiza a lista
 export function filtrarArquivosInstantaneamente() {
   const inputSearchFiles = document.getElementById('inputSearchFiles');
   const btnClearSearch = document.getElementById('btnClearSearch');
@@ -129,7 +228,74 @@ export function filtrarArquivosInstantaneamente() {
   renderizarTabelaArquivosVirtualizada();
 }
 
-// Renderização Virtualizada (Windowing DOM) para listas de até 100.000+ arquivos
+// ==========================================
+// 4. RENDERIZAÇÃO VIRTUALIZADA (WINDOWING DOM)
+// ==========================================
+
+function gerarCelula(colunaId, f, fileIndex, isSelected) {
+  switch (colunaId) {
+    case 'check':
+      return `
+        <td class="cell-file-check">
+          <label class="file-check-label" title="Marcar ou desmarcar arquivo">
+            <input type="checkbox" class="file-check-input" data-index="${fileIndex}" ${isSelected ? 'checked' : ''}>
+            <span class="file-custom-check"></span>
+          </label>
+        </td>
+      `;
+    case 'index':
+      return `<td class="cell-file-index">${fileIndex}</td>`;
+    case 'name': {
+      const nomeArquivo = f.name || f.path?.split('/').pop() || f.path || '';
+      return `
+        <td class="cell-file-name">
+          <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
+        </td>
+      `;
+    }
+    case 'path': {
+      const caminhoArquivo = f.path || f.name || '';
+      return `
+        <td class="cell-file-path">
+          <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
+        </td>
+      `;
+    }
+    case 'size':
+      return `<td class="cell-file-size">${formatarTamanho(f.size)}</td>`;
+    case 'priority': {
+      const prioInfo = formatarPrioridade(f.priority);
+      return `
+        <td class="cell-file-prio">
+          <span class="prio-tag ${prioInfo.classe}">${prioInfo.label}</span>
+        </td>
+      `;
+    }
+    case 'progress': {
+      const percentualNum = typeof f.progress === 'number'
+        ? (f.progress > 1 ? f.progress : f.progress * 100)
+        : 0;
+      const percentualStr = percentualNum.toFixed(1) + '%';
+      const isComplete = percentualNum >= 100;
+      return `
+        <td class="cell-file-progress">
+          <div class="progress-wrapper">
+            <div class="progress-label-row">
+              <span>${percentualStr}</span>
+              <span>${isComplete ? '100%' : ''}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
+            </div>
+          </div>
+        </td>
+      `;
+    }
+    default:
+      return `<td></td>`;
+  }
+}
+
 export function renderizarTabelaArquivosVirtualizada() {
   const searchResultCount = document.getElementById('searchResultCount');
   const filesCountText = document.getElementById('filesCountText');
@@ -140,6 +306,7 @@ export function renderizarTabelaArquivosVirtualizada() {
 
   const totalOriginal = state.todosArquivosDoTorrent.length;
   const totalFiltrado = state.arquivosFiltradosAtuais.length;
+  const colCount = state.columnOrder.length || 7;
 
   if (state.termoBuscaAtual !== '') {
     if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
@@ -152,7 +319,7 @@ export function renderizarTabelaArquivosVirtualizada() {
   if (totalFiltrado === 0) {
     filesTableBody.innerHTML = `
       <tr class="empty-state-row">
-        <td colspan="7">
+        <td colspan="${colCount}">
           <div class="empty-state">
             <div class="empty-icon">🔍</div>
             <h4>Nenhum arquivo encontrado</h4>
@@ -181,64 +348,22 @@ export function renderizarTabelaArquivosVirtualizada() {
     const spacerTop = document.createElement('tr');
     spacerTop.className = 'virtual-spacer-row';
     spacerTop.style.height = `${topPadding}px`;
-    spacerTop.innerHTML = `<td colspan="7" style="height: ${topPadding}px; padding: 0; margin: 0; border: none;"></td>`;
+    spacerTop.innerHTML = `<td colspan="${colCount}" style="height: ${topPadding}px; padding: 0; margin: 0; border: none;"></td>`;
     fragment.appendChild(spacerTop);
   }
 
-  // Renderiza apenas os itens visíveis no viewport
+  // Renderiza itens visíveis de acordo com a ordem dinâmica de colunas
   for (let i = startIndex; i < endIndex; i++) {
     const f = state.arquivosFiltradosAtuais[i];
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : i);
     const isSelected = state.arquivosSelecionadosIndices.has(fileIndex);
 
-    const prioInfo = formatarPrioridade(f.priority);
-    const percentualNum = typeof f.progress === 'number'
-      ? (f.progress > 1 ? f.progress : f.progress * 100)
-      : 0;
-    const percentualStr = percentualNum.toFixed(1) + '%';
-    const isComplete = percentualNum >= 100;
-
-    const nomeArquivo = f.name || f.path.split('/').pop() || f.path;
-    const caminhoArquivo = f.path || f.name;
-
     const tr = document.createElement('tr');
     tr.className = `torrent-file-row ${isSelected ? 'checked' : ''}`;
     tr.dataset.index = fileIndex;
 
-    tr.innerHTML = `
-      <td class="cell-file-check">
-        <label class="file-check-label" title="Marcar ou desmarcar arquivo">
-          <input type="checkbox" class="file-check-input" data-index="${fileIndex}" ${isSelected ? 'checked' : ''}>
-          <span class="file-custom-check"></span>
-        </label>
-      </td>
-      <td class="cell-file-index">${fileIndex}</td>
-      <td class="cell-file-name">
-        <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
-      </td>
-      <td class="cell-file-path">
-        <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
-      </td>
-      <td class="cell-file-size">
-        ${formatarTamanho(f.size)}
-      </td>
-      <td class="cell-file-prio">
-        <span class="prio-tag ${prioInfo.classe}">
-          ${prioInfo.label}
-        </span>
-      </td>
-      <td class="cell-file-progress">
-        <div class="progress-wrapper">
-          <div class="progress-label-row">
-            <span>${percentualStr}</span>
-            <span>${isComplete ? '100%' : ''}</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
-          </div>
-        </div>
-      </td>
-    `;
+    const rowCellsHtml = state.columnOrder.map((colId) => gerarCelula(colId, f, fileIndex, isSelected)).join('');
+    tr.innerHTML = rowCellsHtml;
 
     fragment.appendChild(tr);
   }
@@ -248,7 +373,7 @@ export function renderizarTabelaArquivosVirtualizada() {
     const spacerBottom = document.createElement('tr');
     spacerBottom.className = 'virtual-spacer-row';
     spacerBottom.style.height = `${bottomPadding}px`;
-    spacerBottom.innerHTML = `<td colspan="7" style="height: ${bottomPadding}px; padding: 0; margin: 0; border: none;"></td>`;
+    spacerBottom.innerHTML = `<td colspan="${colCount}" style="height: ${bottomPadding}px; padding: 0; margin: 0; border: none;"></td>`;
     fragment.appendChild(spacerBottom);
   }
 
@@ -257,7 +382,239 @@ export function renderizarTabelaArquivosVirtualizada() {
   atualizarResumoSelecao();
 }
 
-// Seleciona um torrent e carrega seus arquivos
+// ==========================================
+// 5. RESIZE DE COLUNAS (LARGURA ARRASTÁVEL)
+// ==========================================
+
+function carregarLargurasColunas() {
+  try {
+    const salvas = localStorage.getItem(LOCAL_STORAGE_WIDTHS_KEY);
+    if (salvas) {
+      state.columnWidths = JSON.parse(salvas);
+    }
+  } catch {}
+}
+
+function salvarLargurasColunas() {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_WIDTHS_KEY, JSON.stringify(state.columnWidths));
+  } catch {}
+}
+
+function aplicarLargurasColunas() {
+  document.querySelectorAll('#filesTableHeaderRow th').forEach((th) => {
+    const colId = th.dataset.col;
+    if (state.columnWidths && state.columnWidths[colId]) {
+      th.style.width = `${state.columnWidths[colId]}px`;
+    }
+  });
+}
+
+function initColumnResizers() {
+  carregarLargurasColunas();
+  aplicarLargurasColunas();
+
+  const headerRow = document.getElementById('filesTableHeaderRow');
+  if (!headerRow) return;
+
+  headerRow.addEventListener('mousedown', (e) => {
+    const resizer = e.target.closest('.col-resizer');
+    if (!resizer) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const th = resizer.closest('th');
+    if (!th) return;
+
+    const colId = th.dataset.col;
+    const startX = e.clientX;
+    const startWidth = th.offsetWidth;
+    const minWidth = colId === 'check' ? 44 : colId === 'index' ? 45 : 75;
+
+    resizer.classList.add('is-active');
+    document.body.classList.add('is-col-resizing');
+
+    const onMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = Math.max(minWidth, startWidth + deltaX);
+      th.style.width = `${newWidth}px`;
+      state.columnWidths[colId] = newWidth;
+    };
+
+    const onMouseUp = () => {
+      resizer.classList.remove('is-active');
+      document.body.classList.remove('is-col-resizing');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      salvarLargurasColunas();
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+
+  // Double click no resizer restaura tamanho padrão da coluna
+  headerRow.addEventListener('dblclick', (e) => {
+    const resizer = e.target.closest('.col-resizer');
+    if (!resizer) return;
+
+    const th = resizer.closest('th');
+    if (!th) return;
+
+    const colId = th.dataset.col;
+    const defaultWidths = {
+      check: 54,
+      index: 60,
+      name: 320,
+      path: 360,
+      size: 120,
+      priority: 150,
+      progress: 140,
+    };
+
+    const defaultWidth = defaultWidths[colId] || 150;
+    th.style.width = `${defaultWidth}px`;
+    state.columnWidths[colId] = defaultWidth;
+    salvarLargurasColunas();
+    mostrarToast('Coluna Ajustada', `Largura padrão restaurada para a coluna.`, 'info');
+  });
+}
+
+// ==========================================
+// 6. REORDENAÇÃO DE POSIÇÃO DAS COLUNAS (DRAG & DROP)
+// ==========================================
+
+function carregarOrdemColunas() {
+  try {
+    const salva = localStorage.getItem(LOCAL_STORAGE_ORDER_KEY);
+    if (salva) {
+      const ordem = JSON.parse(salva);
+      if (Array.isArray(ordem) && ordem.length === 7) {
+        state.columnOrder = ordem;
+      }
+    }
+  } catch {}
+}
+
+function salvarOrdemColunas() {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_ORDER_KEY, JSON.stringify(state.columnOrder));
+  } catch {}
+}
+
+function renderizarOrdemColunasHeader() {
+  const headerRow = document.getElementById('filesTableHeaderRow');
+  if (!headerRow) return;
+
+  const thMap = {};
+  headerRow.querySelectorAll('th').forEach((th) => {
+    thMap[th.dataset.col] = th;
+  });
+
+  state.columnOrder.forEach((colId) => {
+    const th = thMap[colId];
+    if (th) {
+      headerRow.appendChild(th);
+    }
+  });
+
+  aplicarLargurasColunas();
+  atualizarIndicadoresOrdenacaoUI();
+}
+
+function initColumnReordering() {
+  carregarOrdemColunas();
+  renderizarOrdemColunasHeader();
+
+  const headerRow = document.getElementById('filesTableHeaderRow');
+  if (!headerRow) return;
+
+  let draggedColId = null;
+
+  headerRow.addEventListener('dragstart', (e) => {
+    const th = e.target.closest('th.draggable-col');
+    if (!th || e.target.closest('.col-resizer')) {
+      e.preventDefault();
+      return;
+    }
+
+    draggedColId = th.dataset.col;
+    th.classList.add('is-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedColId);
+  });
+
+  headerRow.addEventListener('dragover', (e) => {
+    const targetTh = e.target.closest('th');
+    if (!targetTh || !draggedColId) return;
+
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const targetRect = targetTh.getBoundingClientRect();
+    const isRightHalf = e.clientX > targetRect.left + targetRect.width / 2;
+
+    headerRow.querySelectorAll('th').forEach((th) => {
+      th.classList.remove('drag-over-left', 'drag-over-right');
+    });
+
+    if (isRightHalf) {
+      targetTh.classList.add('drag-over-right');
+    } else {
+      targetTh.classList.add('drag-over-left');
+    }
+  });
+
+  headerRow.addEventListener('dragleave', (e) => {
+    const targetTh = e.target.closest('th');
+    if (targetTh && !targetTh.contains(e.relatedTarget)) {
+      targetTh.classList.remove('drag-over-left', 'drag-over-right');
+    }
+  });
+
+  headerRow.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const targetTh = e.target.closest('th');
+    if (!targetTh || !draggedColId) return;
+
+    const targetColId = targetTh.dataset.col;
+    if (draggedColId === targetColId) return;
+
+    const targetRect = targetTh.getBoundingClientRect();
+    const insertAfter = e.clientX > targetRect.left + targetRect.width / 2;
+
+    const oldIndex = state.columnOrder.indexOf(draggedColId);
+    let targetIndex = state.columnOrder.indexOf(targetColId);
+
+    if (oldIndex !== -1 && targetIndex !== -1) {
+      state.columnOrder.splice(oldIndex, 1);
+      if (insertAfter) {
+        targetIndex = state.columnOrder.indexOf(targetColId) + 1;
+      } else {
+        targetIndex = state.columnOrder.indexOf(targetColId);
+      }
+      state.columnOrder.splice(targetIndex, 0, draggedColId);
+
+      salvarOrdemColunas();
+      renderizarOrdemColunasHeader();
+      renderizarTabelaArquivosVirtualizada();
+      mostrarToast('Ordem Atualizada', 'Posição da coluna reorganizada com sucesso!', 'info');
+    }
+  });
+
+  headerRow.addEventListener('dragend', () => {
+    draggedColId = null;
+    headerRow.querySelectorAll('th').forEach((th) => {
+      th.classList.remove('is-dragging', 'drag-over-left', 'drag-over-right');
+    });
+  });
+}
+
+// ==========================================
+// 7. SELEÇÃO E APLICAÇÃO DE PRIORIDADES
+// ==========================================
+
 export async function selecionarTorrent(torrent) {
   state.torrentSelecionadoAtual = torrent;
 
@@ -275,7 +632,6 @@ export async function selecionarTorrent(torrent) {
   const btnClearSearch = document.getElementById('btnClearSearch');
   const filesScrollArea = document.getElementById('filesScrollArea');
 
-  // Destaca a linha selecionada na tabela de torrents
   document.querySelectorAll('.torrent-row').forEach((r) => {
     r.classList.toggle('selected', r.dataset.hash === torrent.hash);
   });
@@ -295,10 +651,11 @@ export async function selecionarTorrent(torrent) {
   if (filesCountText) filesCountText.textContent = 'Carregando arquivos do torrent...';
   if (searchResultCount) searchResultCount.textContent = 'Carregando lista...';
 
+  const colCount = state.columnOrder.length || 7;
   if (filesTableBody) {
     filesTableBody.innerHTML = `
       <tr class="empty-state-row">
-        <td colspan="7">
+        <td colspan="${colCount}">
           <div class="empty-state">
             <div class="empty-icon">⏳</div>
             <h4>Carregando arquivos...</h4>
@@ -319,7 +676,7 @@ export async function selecionarTorrent(torrent) {
     if (ok && data.sucesso) {
       state.todosArquivosDoTorrent = data.files || [];
 
-      // Pré-processamento e indexação instantânea em O(N)
+      // Indexação instantânea em O(N)
       state.arquivosSelecionadosIndices = new Set();
       state.todosArquivosDoTorrent.forEach((f, idx) => {
         f._fileIndex = f.index !== undefined ? f.index : idx;
@@ -335,9 +692,10 @@ export async function selecionarTorrent(torrent) {
       }
 
       state.termoBuscaAtual = '';
-      state.arquivosFiltradosAtuais = state.todosArquivosDoTorrent;
+      state.arquivosFiltradosAtuais = obterArquivosVisiveis();
       if (filesScrollArea) filesScrollArea.scrollTop = 0;
 
+      atualizarIndicadoresOrdenacaoUI();
       renderizarTabelaArquivosVirtualizada();
 
       mostrarToast(
@@ -353,7 +711,7 @@ export async function selecionarTorrent(torrent) {
       if (filesTableBody) {
         filesTableBody.innerHTML = `
           <tr class="empty-state-row">
-            <td colspan="7">
+            <td colspan="${colCount}">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
                 <h4>Falha ao carregar arquivos</h4>
@@ -374,7 +732,7 @@ export async function selecionarTorrent(torrent) {
     if (filesTableBody) {
       filesTableBody.innerHTML = `
         <tr class="empty-state-row">
-          <td colspan="7">
+          <td colspan="${colCount}">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
               <h4>Erro de rede</h4>
@@ -389,7 +747,6 @@ export async function selecionarTorrent(torrent) {
   }
 }
 
-// Salva as prioridades dos arquivos marcados/desmarcados no cliente BitTorrent
 export async function salvarPrioridades() {
   if (!state.torrentSelecionadoAtual || state.todosArquivosDoTorrent.length === 0) {
     mostrarToast('Aviso', 'Nenhum torrent ou arquivo selecionado para aplicar prioridades.', 'info');
@@ -436,7 +793,6 @@ export async function salvarPrioridades() {
         `As prioridades do torrent "${state.torrentSelecionadoAtual.name}" foram sincronizadas com sucesso com o cliente BitTorrent.`
       );
 
-      // Recarrega arquivos para atualizar interface
       await selecionarTorrent(state.torrentSelecionadoAtual);
     } else {
       const msgErro = data.erro || 'Falha ao aplicar prioridades no qBittorrent.';
@@ -453,6 +809,10 @@ export async function salvarPrioridades() {
   }
 }
 
+// ==========================================
+// 8. INICIALIZAÇÃO DE LISTENERS
+// ==========================================
+
 export function initFilesManager() {
   const filesTableBody = document.getElementById('filesTableBody');
   const filesScrollArea = document.getElementById('filesScrollArea');
@@ -466,8 +826,27 @@ export function initFilesManager() {
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
   const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
   const torrentFilesSection = document.getElementById('torrentFilesSection');
+  const headerRow = document.getElementById('filesTableHeaderRow');
 
-  // Event Delegation no container de arquivos
+  // Inicializa Resizers e Drag & Drop de Colunas
+  initColumnResizers();
+  initColumnReordering();
+
+  // Listener de clique nos cabeçalhos para ordenação
+  headerRow?.addEventListener('click', (e) => {
+    // Não dispara ordenação se o usuário clicou no handle de redimensionamento
+    if (e.target.closest('.col-resizer')) return;
+
+    const th = e.target.closest('th.sortable-th');
+    if (!th) return;
+
+    const colId = th.dataset.col;
+    if (colId) {
+      alterarOrdenacao(colId);
+    }
+  });
+
+  // Event Delegation no corpo da tabela
   filesTableBody?.addEventListener('click', (e) => {
     const tr = e.target.closest('.torrent-file-row');
     if (!tr) return;

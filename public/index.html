@@ -339,14 +339,56 @@
           <div class="table-responsive files-scroll-area" id="filesScrollArea">
             <table class="torrent-table files-table" id="filesTable">
               <thead>
-                <tr>
-                  <th class="th-file-check">Marcar</th>
-                  <th class="th-file-index">#</th>
-                  <th class="th-file-name">Nome do Arquivo</th>
-                  <th class="th-file-path">Caminho</th>
-                  <th class="th-file-size">Tamanho</th>
-                  <th class="th-file-prio">Prioridade Atual</th>
-                  <th class="th-file-progress">Progresso</th>
+                <tr id="filesTableHeaderRow">
+                  <th class="th-file-check sortable-th" data-col="check" title="Clique para ordenar por marcados/desmarcados">
+                    <div class="th-content">
+                      <span class="th-title-text">Marcar</span>
+                      <span class="sort-arrow" data-sort-for="check">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="check"></span>
+                  </th>
+                  <th class="th-file-index sortable-th draggable-col" data-col="index" draggable="true" title="Clique para ordenar pelo Índice # | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">#</span>
+                      <span class="sort-arrow" data-sort-for="index">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="index"></span>
+                  </th>
+                  <th class="th-file-name sortable-th draggable-col" data-col="name" draggable="true" title="Clique para ordenar por Nome | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">Nome do Arquivo</span>
+                      <span class="sort-arrow" data-sort-for="name">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="name"></span>
+                  </th>
+                  <th class="th-file-path sortable-th draggable-col" data-col="path" draggable="true" title="Clique para ordenar por Caminho | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">Caminho</span>
+                      <span class="sort-arrow" data-sort-for="path">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="path"></span>
+                  </th>
+                  <th class="th-file-size sortable-th draggable-col" data-col="size" draggable="true" title="Clique para ordenar por Tamanho | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">Tamanho</span>
+                      <span class="sort-arrow" data-sort-for="size">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="size"></span>
+                  </th>
+                  <th class="th-file-prio sortable-th draggable-col" data-col="priority" draggable="true" title="Clique para ordenar por Prioridade | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">Prioridade</span>
+                      <span class="sort-arrow" data-sort-for="priority">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="priority"></span>
+                  </th>
+                  <th class="th-file-progress sortable-th draggable-col" data-col="progress" draggable="true" title="Clique para ordenar por Progresso | Arraste para mover coluna">
+                    <div class="th-content">
+                      <span class="th-title-text">Progresso</span>
+                      <span class="sort-arrow" data-sort-for="progress">↕</span>
+                    </div>
+                    <span class="col-resizer" data-resizer-for="progress"></span>
+                  </th>
                 </tr>
               </thead>
               <tbody id="filesTableBody">
