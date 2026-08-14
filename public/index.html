@@ -300,21 +300,45 @@
             </button>
           </div>
 
-          <!-- Filtros por Prioridade (Etapa 10) -->
-          <div class="priority-filters-group">
-            <label class="filter-chip" title="Ocultar arquivos configurados como Não Baixar (prioridade 0)">
-              <input type="checkbox" id="filterHideIgnored" class="filter-chip-input">
+          <!-- Filtros por Status e Prioridade dos Arquivos (Ativos, Inativos, Todos, Selecionados) -->
+          <div class="priority-filters-group" id="priorityFiltersGroup">
+            <span class="filter-group-label">Status:</span>
+
+            <label class="filter-chip" title="Exibir todos os arquivos do torrent">
+              <input type="radio" name="fileStatusFilter" id="filterStatusAll" value="all" class="filter-chip-input" checked>
               <span class="filter-chip-btn">
-                <span class="chip-dot red"></span>
-                <span>Ocultar Ignorados</span>
+                <span class="chip-dot gray"></span>
+                <span>Todos</span>
+                <span class="filter-count-badge" id="badgeCountAll">0</span>
               </span>
             </label>
 
-            <label class="filter-chip" title="Exibir apenas os arquivos atualmente selecionados para download">
+            <label class="filter-chip" title="Exibir apenas arquivos ativos para download (Prioridade Normal, Alta ou Máxima)">
+              <input type="radio" name="fileStatusFilter" id="filterStatusActive" value="active" class="filter-chip-input">
+              <span class="filter-chip-btn filter-chip-active">
+                <span class="chip-dot green"></span>
+                <span>Ativos</span>
+                <span class="filter-count-badge" id="badgeCountActive">0</span>
+              </span>
+            </label>
+
+            <label class="filter-chip" title="Exibir apenas arquivos inativos / ignorados (Não Baixar / Prioridade 0)">
+              <input type="radio" name="fileStatusFilter" id="filterStatusInactive" value="inactive" class="filter-chip-input">
+              <span class="filter-chip-btn filter-chip-inactive">
+                <span class="chip-dot red"></span>
+                <span>Inativos</span>
+                <span class="filter-count-badge" id="badgeCountInactive">0</span>
+              </span>
+            </label>
+
+            <div class="filter-separator"></div>
+
+            <label class="filter-chip" title="Exibir apenas os arquivos atualmente marcados na caixa de seleção">
               <input type="checkbox" id="filterOnlySelected" class="filter-chip-input">
-              <span class="filter-chip-btn">
+              <span class="filter-chip-btn filter-chip-selected">
                 <span class="chip-dot cyan"></span>
-                <span>Apenas Selecionados</span>
+                <span>Apenas Marcados</span>
+                <span class="filter-count-badge" id="badgeCountSelected">0</span>
               </span>
             </label>
           </div>

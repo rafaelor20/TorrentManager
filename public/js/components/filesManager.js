@@ -63,6 +63,32 @@ export function obterColunasVisiveis() {
   return state.columnOrder.filter((colId) => !state.hiddenColumns.has(colId));
 }
 
+export function atualizarContadoresFiltros() {
+  const badgeCountAll = document.getElementById('badgeCountAll');
+  const badgeCountActive = document.getElementById('badgeCountActive');
+  const badgeCountInactive = document.getElementById('badgeCountInactive');
+  const badgeCountSelected = document.getElementById('badgeCountSelected');
+
+  const total = state.todosArquivosDoTorrent.length;
+  let countActive = 0;
+  let countInactive = 0;
+
+  state.todosArquivosDoTorrent.forEach((f) => {
+    if (f.priority !== 0) {
+      countActive++;
+    } else {
+      countInactive++;
+    }
+  });
+
+  const countSelected = state.arquivosSelecionadosIndices.size;
+
+  if (badgeCountAll) badgeCountAll.textContent = total.toLocaleString('pt-BR');
+  if (badgeCountActive) badgeCountActive.textContent = countActive.toLocaleString('pt-BR');
+  if (badgeCountInactive) badgeCountInactive.textContent = countInactive.toLocaleString('pt-BR');
+  if (badgeCountSelected) badgeCountSelected.textContent = countSelected.toLocaleString('pt-BR');
+}
+
 export function atualizarResumoSelecao() {
   const filesSelectionBadge = document.getElementById('filesSelectionBadge');
   const selectionSummaryCount = document.getElementById('selectionSummaryCount');
@@ -88,6 +114,8 @@ export function atualizarResumoSelecao() {
   if (selectionSummarySize) {
     selectionSummarySize.textContent = `(${formatarTamanho(bytesSelecionados)})`;
   }
+
+  atualizarContadoresFiltros();
 }
 
 export function alternarSelecaoArquivo(index, forcarEstado = null) {
@@ -206,22 +234,32 @@ export function obterArquivosVisiveis() {
   }
 
   const inputSearchFiles = document.getElementById('inputSearchFiles');
-  const filterHideIgnored = document.getElementById('filterHideIgnored');
+  const filterStatusActive = document.getElementById('filterStatusActive');
+  const filterStatusInactive = document.getElementById('filterStatusInactive');
   const filterOnlySelected = document.getElementById('filterOnlySelected');
 
   const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
-  const ocultarIgnorados = Boolean(filterHideIgnored?.checked);
+  const statusFiltro = filterStatusActive?.checked
+    ? 'active'
+    : filterStatusInactive?.checked
+      ? 'inactive'
+      : 'all';
+  state.filtroStatusArquivo = statusFiltro;
+
   const apenasSelecionados = Boolean(filterOnlySelected?.checked);
 
   const filtrados = state.todosArquivosDoTorrent.filter((f) => {
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
 
-    // 1. Filtro: Ocultar ignorados (priority === 0)
-    if (ocultarIgnorados && f.priority === 0) {
+    // 1. Filtro de Status: Ativos (prio > 0) / Inativos (prio === 0) / Todos
+    if (statusFiltro === 'active' && f.priority === 0) {
+      return false;
+    }
+    if (statusFiltro === 'inactive' && f.priority !== 0) {
       return false;
     }
 
-    // 2. Filtro: Apenas selecionados
+    // 2. Filtro: Apenas selecionados / marcados
     if (apenasSelecionados && !state.arquivosSelecionadosIndices.has(fileIndex)) {
       return false;
     }
@@ -349,6 +387,9 @@ export function renderizarTabelaArquivosVirtualizada() {
   if (state.termoBuscaAtual !== '') {
     if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
     if (filesCountText) filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos para "${state.termoBuscaAtual}"`;
+  } else if (totalFiltrado !== totalOriginal) {
+    if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos filtrados`;
+    if (filesCountText) filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos filtrados`;
   } else {
     if (searchResultCount) searchResultCount.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos disponíveis`;
     if (filesCountText) filesCountText.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos carregados`;
@@ -831,7 +872,7 @@ export async function selecionarTorrent(torrent) {
   const searchResultCount = document.getElementById('searchResultCount');
   const filesTableBody = document.getElementById('filesTableBody');
   const inputSearchFiles = document.getElementById('inputSearchFiles');
-  const filterHideIgnored = document.getElementById('filterHideIgnored');
+  const filterStatusAll = document.getElementById('filterStatusAll');
   const filterOnlySelected = document.getElementById('filterOnlySelected');
   const btnClearSearch = document.getElementById('btnClearSearch');
   const filesScrollArea = document.getElementById('filesScrollArea');
@@ -845,7 +886,7 @@ export async function selecionarTorrent(torrent) {
   if (selectedTorrentMeta) selectedTorrentMeta.textContent = `Tamanho total: ${formatarTamanho(torrent.size)}`;
 
   if (inputSearchFiles) inputSearchFiles.value = '';
-  if (filterHideIgnored) filterHideIgnored.checked = false;
+  if (filterStatusAll) filterStatusAll.checked = true;
   if (filterOnlySelected) filterOnlySelected.checked = false;
   if (btnClearSearch) btnClearSearch.style.display = 'none';
 
@@ -1028,7 +1069,6 @@ export function initFilesManager() {
   const btnDeselectAll = document.getElementById('btnDeselectAll');
   const btnInvertSelection = document.getElementById('btnInvertSelection');
   const inputSearchFiles = document.getElementById('inputSearchFiles');
-  const filterHideIgnored = document.getElementById('filterHideIgnored');
   const filterOnlySelected = document.getElementById('filterOnlySelected');
   const btnClearSearch = document.getElementById('btnClearSearch');
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
@@ -1148,7 +1188,9 @@ export function initFilesManager() {
 
   // Filtros e busca
   inputSearchFiles?.addEventListener('input', filtrarArquivosInstantaneamente);
-  filterHideIgnored?.addEventListener('change', filtrarArquivosInstantaneamente);
+  document.querySelectorAll('input[name="fileStatusFilter"]').forEach((radio) => {
+    radio.addEventListener('change', filtrarArquivosInstantaneamente);
+  });
   filterOnlySelected?.addEventListener('change', filtrarArquivosInstantaneamente);
 
   btnClearSearch?.addEventListener('click', () => {

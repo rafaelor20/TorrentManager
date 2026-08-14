@@ -409,12 +409,29 @@ body {
   flex-wrap: wrap;
 }
 
-/* Filtros por Prioridade (Etapa 10) */
+/* Filtros por Status e Prioridade dos Arquivos (Ativos, Inativos, Todos, Selecionados) */
 .priority-filters-group {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.filter-group-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-right: 2px;
+  user-select: none;
+}
+
+.filter-separator {
+  width: 1px;
+  height: 22px;
+  background: var(--border-color);
+  margin: 0 4px;
 }
 
 .filter-chip {
@@ -433,27 +450,90 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 9999px;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid var(--border-color);
   font-size: 0.76rem;
   font-weight: 600;
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .filter-chip-btn:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.95);
+  transform: translateY(-1px);
 }
 
+.filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  line-height: 1;
+  margin-left: 2px;
+  transition: all 0.2s ease;
+}
+
+/* Estado Ativo padrão (Todos / Azul) */
 .filter-chip-input:checked + .filter-chip-btn {
   background: rgba(6, 182, 212, 0.15);
-  border-color: rgba(6, 182, 212, 0.4);
+  border-color: rgba(6, 182, 212, 0.45);
   color: #38bdf8;
-  box-shadow: 0 0 12px rgba(6, 182, 212, 0.2);
+  box-shadow: 0 0 14px rgba(6, 182, 212, 0.22);
+}
+
+.filter-chip-input:checked + .filter-chip-btn .filter-count-badge {
+  background: rgba(6, 182, 212, 0.25);
+  color: #e0f2fe;
+}
+
+/* Estado Ativo: Filtro de Arquivos Ativos (Verde / Emerald) */
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.22);
+}
+
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-active .filter-count-badge {
+  background: rgba(16, 185, 129, 0.25);
+  color: #d1fae5;
+}
+
+/* Estado Ativo: Filtro de Arquivos Inativos (Vermelho / Rose) */
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-inactive {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fb7185;
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.22);
+}
+
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-inactive .filter-count-badge {
+  background: rgba(244, 63, 94, 0.25);
+  color: #ffe4e6;
+}
+
+/* Estado Ativo: Filtro de Arquivos Apenas Marcados (Ciano / Sky) */
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-selected {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
+}
+
+.filter-chip-input:checked + .filter-chip-btn.filter-chip-selected .filter-count-badge {
+  background: rgba(56, 189, 248, 0.25);
+  color: #e0f2fe;
 }
 
 .chip-dot {
@@ -461,6 +541,10 @@ body {
   height: 6px;
   border-radius: 50%;
   background: var(--text-muted);
+}
+
+.chip-dot.green {
+  background: #34d399;
 }
 
 .chip-dot.red {
@@ -471,8 +555,12 @@ body {
   background: #38bdf8;
 }
 
+.chip-dot.gray {
+  background: #94a3b8;
+}
+
 .filter-chip-input:checked + .filter-chip-btn .chip-dot {
-  box-shadow: 0 0 6px currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .btn-sm {
