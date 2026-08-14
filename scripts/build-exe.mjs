@@ -84,13 +84,10 @@ const releaseData = path.join(RELEASE_DIR, 'data');
 if (!fs.existsSync(releasePublic)) fs.mkdirSync(releasePublic, { recursive: true });
 if (!fs.existsSync(releaseData)) fs.mkdirSync(releaseData, { recursive: true });
 
-// Copiar pasta public/
+// Copiar pasta public/ (recursivo)
 const publicSrc = path.join(ROOT_DIR, 'public');
 if (fs.existsSync(publicSrc)) {
-  const files = fs.readdirSync(publicSrc);
-  for (const file of files) {
-    fs.copyFileSync(path.join(publicSrc, file), path.join(releasePublic, file));
-  }
+  fs.cpSync(publicSrc, releasePublic, { recursive: true });
   console.log(`✓ Interface web copiada para: release/public`);
 }
 

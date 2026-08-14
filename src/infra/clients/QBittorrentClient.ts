@@ -10,6 +10,8 @@ export interface QBittorrentInfo {
   webApiVersion?: string;
   connectedAt?: Date;
   urlBase: string;
+  latencyMs?: number;
+  cookieActive?: boolean;
 }
 
 export class QBittorrentClient implements TorrentClient {
@@ -84,6 +86,7 @@ export class QBittorrentClient implements TorrentClient {
    * Conecta e autentica na Web API do qBittorrent via HTTP ou HTTPS
    */
   async conectar(configOverride?: TorrentClientConfig): Promise<boolean> {
+    const inicio = Date.now();
     if (configOverride) {
       this.config = { ...configOverride };
     }
@@ -169,12 +172,15 @@ export class QBittorrentClient implements TorrentClient {
         // Se a chamada de versão falhar mas o login foi 204/200, mantém a sessão
       }
 
+      const latencyMs = Date.now() - inicio;
       this.conectado = true;
       this.infoConexao = {
         appVersion,
         webApiVersion,
         connectedAt: new Date(),
         urlBase,
+        latencyMs,
+        cookieActive: Boolean(this.cookieAutenticacao),
       };
 
       this.detalhesUltimaConexao = `Conectado com sucesso ao qBittorrent ${appVersion} (Web API v${webApiVersion}) em ${urlBase}`;
