@@ -55,6 +55,33 @@ export function extrairApenasCaminho(rawPath, rawName) {
   return './';
 }
 
+// Normaliza texto para busca (remove acentos e converte para minúsculas)
+export function normalizarTextoBusca(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+// Extrai tokens de busca suportando termos compostos por espaço ou aspas (ex: "gran turismo" usa ou gran turismo usa)
+export function extrairTokensBusca(termo) {
+  if (!termo) return [];
+  const normalized = normalizarTextoBusca(termo).trim();
+  if (!normalized) return [];
+
+  const tokens = [];
+  const regex = /"([^"]+)"|'([^']+)'|(\S+)/g;
+  let match;
+  while ((match = regex.exec(normalized)) !== null) {
+    const token = match[1] || match[2] || match[3];
+    if (token && token.trim()) {
+      tokens.push(token.trim());
+    }
+  }
+  return tokens;
+}
+
 // ==========================================
 // 1. GERENCIAMENTO DE ESTADO E RESUMO
 // ==========================================
@@ -238,7 +265,8 @@ export function obterArquivosVisiveis() {
   const filterStatusInactive = document.getElementById('filterStatusInactive');
   const filterOnlySelected = document.getElementById('filterOnlySelected');
 
-  const termo = (inputSearchFiles?.value || '').trim().toLowerCase();
+  const termo = (inputSearchFiles?.value || '').trim();
+  const tokensBusca = extrairTokensBusca(termo);
   const statusFiltro = filterStatusActive?.checked
     ? 'active'
     : filterStatusInactive?.checked
@@ -264,11 +292,13 @@ export function obterArquivosVisiveis() {
       return false;
     }
 
-    // 3. Filtro: Pesquisa instantânea pré-indexada
-    if (termo) {
-      const searchStr = f._searchLower || ((f.name || '') + ' ' + (f.path || '')).toLowerCase();
-      if (!searchStr.includes(termo)) {
-        return false;
+    // 3. Filtro: Pesquisa instantânea por múltiplas substrings (todas as palavras devem coincidir)
+    if (tokensBusca.length > 0) {
+      const searchStr = f._searchNormalized || normalizarTextoBusca(`${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`);
+      for (let i = 0; i < tokensBusca.length; i++) {
+        if (!searchStr.includes(tokensBusca[i])) {
+          return false;
+        }
       }
     }
 
@@ -929,7 +959,8 @@ export async function selecionarTorrent(torrent) {
         f._fileIndex = f.index !== undefined ? f.index : idx;
         f._fileName = extrairApenasNomeArquivo(f.name, f.path);
         f._dirPath = extrairApenasCaminho(f.path, f.name);
-        f._searchLower = `${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`.toLowerCase();
+        f._searchNormalized = normalizarTextoBusca(`${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`);
+        f._searchLower = f._searchNormalized;
 
         if (f.priority !== 0) {
           state.arquivosSelecionadosIndices.add(f._fileIndex);
