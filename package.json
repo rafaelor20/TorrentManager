@@ -9,6 +9,8 @@
     "bundle": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/bundle.cjs",
     "build:exe": "node scripts/build-exe.mjs",
     "build:win": "node scripts/build-exe.mjs",
+    "build:linux": "node scripts/build-linux.mjs",
+    "build:all": "node scripts/build-linux.mjs && node scripts/build-exe.mjs",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit"
