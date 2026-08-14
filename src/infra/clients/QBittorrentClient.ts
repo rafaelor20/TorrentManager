@@ -310,15 +310,22 @@ export class QBittorrentClient implements TorrentClient {
       }
 
       const files = JSON.parse(response.bodyText) as any[];
-      return files.map((f, idx) => ({
-        index: typeof f.index === 'number' ? f.index : idx,
-        name: f.name,
-        path: f.name,
-        size: f.size || 0,
-        progress: typeof f.progress === 'number' ? f.progress : 0,
-        priority: typeof f.priority === 'number' ? (f.priority as FilePriority) : FilePriority.NORMAL,
-        isAvailable: f.is_seed || f.availability > 0,
-      }));
+      return files.map((f, idx) => {
+        const rawPath = String(f.name || '').replace(/\\/g, '/');
+        const segments = rawPath.split('/');
+        const fileName = segments[segments.length - 1] || rawPath;
+        const dirPath = segments.length > 1 ? segments.slice(0, -1).join('/') : './';
+
+        return {
+          index: typeof f.index === 'number' ? f.index : idx,
+          name: fileName,
+          path: dirPath,
+          size: f.size || 0,
+          progress: typeof f.progress === 'number' ? f.progress : 0,
+          priority: typeof f.priority === 'number' ? (f.priority as FilePriority) : FilePriority.NORMAL,
+          isAvailable: f.is_seed || f.availability > 0,
+        };
+      });
     } catch (err) {
       console.error('[QBittorrentClient] Erro ao listar arquivos:', err);
       throw err;

@@ -34,6 +34,27 @@ export const COLUNAS_INFO = {
 
 let scrollRafId = null;
 
+// Extrai estritamente apenas o nome do arquivo (ex: "video.mp4" de "Pasta/Sub/video.mp4")
+export function extrairApenasNomeArquivo(rawName, rawPath) {
+  const str = String(rawName || rawPath || '').replace(/\\/g, '/');
+  const partes = str.split('/');
+  return partes[partes.length - 1] || str;
+}
+
+// Extrai a estrutura de diretórios/pastas (ex: "Pasta/Sub" de "Pasta/Sub/video.mp4")
+export function extrairApenasCaminho(rawPath, rawName) {
+  const str = String(rawPath || rawName || '').replace(/\\/g, '/');
+  const partes = str.split('/');
+  if (partes.length > 1) {
+    partes.pop();
+    return partes.join('/');
+  }
+  if (rawPath && rawPath !== rawName && rawPath !== './') {
+    return rawPath;
+  }
+  return './';
+}
+
 // ==========================================
 // 1. GERENCIAMENTO DE ESTADO E RESUMO
 // ==========================================
@@ -134,13 +155,13 @@ function ordenarListaDeArquivos(lista) {
   return [...lista].sort((a, b) => {
     switch (col) {
       case 'name': {
-        const nomeA = a.name || a.path || '';
-        const nomeB = b.name || b.path || '';
+        const nomeA = a._fileName || extrairApenasNomeArquivo(a.name, a.path);
+        const nomeB = b._fileName || extrairApenasNomeArquivo(b.name, b.path);
         return nomeA.localeCompare(nomeB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
       }
       case 'path': {
-        const pathA = a.path || a.name || '';
-        const pathB = b.path || b.name || '';
+        const pathA = a._dirPath || extrairApenasCaminho(a.path, a.name);
+        const pathB = b._dirPath || extrairApenasCaminho(b.path, b.name);
         return pathA.localeCompare(pathB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
       }
       case 'size': {
@@ -262,7 +283,7 @@ function gerarCelula(colunaId, f, fileIndex, isSelected) {
     case 'index':
       return `<td class="cell-file-index">${fileIndex}</td>`;
     case 'name': {
-      const nomeArquivo = f.name || f.path?.split('/').pop() || f.path || '';
+      const nomeArquivo = f._fileName || extrairApenasNomeArquivo(f.name, f.path);
       return `
         <td class="cell-file-name">
           <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
@@ -270,7 +291,7 @@ function gerarCelula(colunaId, f, fileIndex, isSelected) {
       `;
     }
     case 'path': {
-      const caminhoArquivo = f.path || f.name || '';
+      const caminhoArquivo = f._dirPath || extrairApenasCaminho(f.path, f.name);
       return `
         <td class="cell-file-path">
           <span class="file-path-text" title="${caminhoArquivo}">${caminhoArquivo}</span>
@@ -865,7 +886,9 @@ export async function selecionarTorrent(torrent) {
       state.arquivosSelecionadosIndices = new Set();
       state.todosArquivosDoTorrent.forEach((f, idx) => {
         f._fileIndex = f.index !== undefined ? f.index : idx;
-        f._searchLower = ((f.name || '') + ' ' + (f.path || '')).toLowerCase();
+        f._fileName = extrairApenasNomeArquivo(f.name, f.path);
+        f._dirPath = extrairApenasCaminho(f.path, f.name);
+        f._searchLower = `${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`.toLowerCase();
 
         if (f.priority !== 0) {
           state.arquivosSelecionadosIndices.add(f._fileIndex);
