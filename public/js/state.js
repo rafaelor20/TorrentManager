@@ -19,12 +19,15 @@ export const state = {
   // Filtro de status dos arquivos ('all' | 'active' | 'inactive')
   filtroStatusArquivo: 'all',
 
-  // Lista de torrents carregados, filtros e ordenação
+  // Lista de torrents carregados, filtros, categorias e ordenação
   todosTorrents: [],
   torrentsFiltrados: [],
   filtroTorrentsStatus: 'all', // 'all' | 'completed' | 'downloading' | 'paused'
+  filtroTorrentsCategoria: 'all', // 'all' | '__none__' (sem categoria) | '<nome_categoria>'
+  agruparPorCategoria: false, // boolean: visualização agrupada em blocos por categoria
+  categoriasDisponiveis: [], // lista de categorias únicas encontradas
   termoBuscaTorrents: '',
-  torrentSortColumn: 'name', // 'name' | 'status' | 'progress' | 'size' | 'speeds'
+  torrentSortColumn: 'name', // 'name' | 'category' | 'status' | 'progress' | 'size' | 'speeds'
   torrentSortDirection: 'asc', // 'asc' | 'desc'
 
   // Ordem, larguras e visibilidade das colunas da tabela de arquivos

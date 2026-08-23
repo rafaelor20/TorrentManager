@@ -23,4 +23,6 @@ export interface Torrent {
   rawState?: string;
   savePath?: string;
   contentPath?: string;
+  category?: string;
+  tags?: string[];
 }

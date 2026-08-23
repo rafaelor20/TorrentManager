@@ -1,10 +1,11 @@
 /**
  * Componente da Tabela de Torrents e Estatísticas Rápidas
  * Recursos:
+ * - Separação e Filtragem por Categorias (Pílulas dinâmicas e Agrupamento por Categoria)
  * - Filtragem Instantânea por Status ao clicar nos cards de estatísticas acima
- * - Pesquisa Instantânea de Torrents por Nome e Hash
- * - Ordenação Inteligente por Coluna (Nome, Status, Progresso, Tamanho, Velocidade)
- * - Indicadores visuais de ordenação (▲ / ▼ / ↕) e de filtro ativo
+ * - Pesquisa Instantânea de Torrents por Nome, Categoria e Hash
+ * - Ordenação Inteligente por Coluna (Nome, Categoria, Status, Progresso, Tamanho, Velocidade)
+ * - Indicadores visuais de ordenação (▲ / ▼ / ↕), categoria e filtro ativo
  * - Sincronização em tempo real e atualização de estatísticas
  */
 
@@ -15,7 +16,7 @@ import { mostrarToast } from './toast.js';
 import { selecionarTorrent } from './filesManager.js';
 
 // ==========================================
-// 1. FILTRAGEM DE TORRENTS (STATUS & BUSCA)
+// 1. FILTRAGEM DE TORRENTS (STATUS, CATEGORIA & BUSCA)
 // ==========================================
 
 export function obterTorrentsVisiveis() {
@@ -23,6 +24,7 @@ export function obterTorrentsVisiveis() {
   if (lista.length === 0) return [];
 
   const filtroStatus = state.filtroTorrentsStatus || 'all';
+  const filtroCat = state.filtroTorrentsCategoria || 'all';
   const termo = (state.termoBuscaTorrents || '').trim();
   const tokensBusca = extrairTokensBusca(termo);
 
@@ -37,9 +39,18 @@ export function obterTorrentsVisiveis() {
       if (t.status !== 'paused') return false;
     }
 
-    // 2. Filtro por busca de nome e hash
+    // 2. Filtro por categoria
+    if (filtroCat !== 'all') {
+      if (filtroCat === '__none__') {
+        if (t.category && t.category.trim().length > 0) return false;
+      } else {
+        if ((t.category || '').trim() !== filtroCat) return false;
+      }
+    }
+
+    // 3. Filtro por busca de texto (nome, categoria e hash)
     if (tokensBusca.length > 0) {
-      const searchStr = normalizarTextoBusca(`${t.name || ''} ${t.hash || ''}`);
+      const searchStr = normalizarTextoBusca(`${t.name || ''} ${t.category || ''} ${t.hash || ''}`);
       for (let i = 0; i < tokensBusca.length; i++) {
         if (!searchStr.includes(tokensBusca[i])) {
           return false;
@@ -62,7 +73,6 @@ export function atualizarIndicadoresFiltroStatusTorrentsUI() {
 }
 
 export function definirFiltroStatusTorrents(novoFiltro) {
-  // Se clicar no mesmo filtro já ativo (exceto 'all'), desmarca e volta para 'all'
   if (state.filtroTorrentsStatus === novoFiltro && novoFiltro !== 'all') {
     state.filtroTorrentsStatus = 'all';
   } else {
@@ -79,6 +89,115 @@ export function definirFiltroStatusTorrents(novoFiltro) {
     paused: 'Pausados',
   };
   mostrarToast('Filtro de Status', `Filtro ativo: ${labels[state.filtroTorrentsStatus] || state.filtroTorrentsStatus}`, 'info');
+}
+
+export function atualizarPilulasCategoriasUI() {
+  const container = document.getElementById('torrentCategoryPillsContainer');
+  const pillsList = document.getElementById('torrentCategoryPillsList');
+  if (!container || !pillsList) return;
+
+  const todos = state.todosTorrents || [];
+  if (todos.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const contagens = new Map();
+  let countSemCat = 0;
+
+  todos.forEach((t) => {
+    const cat = t.category && t.category.trim();
+    if (cat) {
+      contagens.set(cat, (contagens.get(cat) || 0) + 1);
+    } else {
+      countSemCat++;
+    }
+  });
+
+  const categoriasUnicas = Array.from(contagens.keys()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' })
+  );
+
+  state.categoriasDisponiveis = categoriasUnicas;
+
+  // Se não houver categorias registradas nos torrents, oculta a barra de pílulas
+  if (categoriasUnicas.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+
+  const filtroAtual = state.filtroTorrentsCategoria || 'all';
+
+  let pillsHtml = `
+    <button type="button" class="category-pill ${filtroAtual === 'all' ? 'is-active' : ''}" data-category="all">
+      <span>Todos</span>
+      <span class="category-pill-count">${todos.length}</span>
+    </button>
+  `;
+
+  categoriasUnicas.forEach((cat) => {
+    const count = contagens.get(cat) || 0;
+    const isActive = filtroAtual === cat;
+    pillsHtml += `
+      <button type="button" class="category-pill ${isActive ? 'is-active' : ''}" data-category="${cat}">
+        <span>📁 ${cat}</span>
+        <span class="category-pill-count">${count}</span>
+      </button>
+    `;
+  });
+
+  if (countSemCat > 0) {
+    const isActive = filtroAtual === '__none__';
+    pillsHtml += `
+      <button type="button" class="category-pill ${isActive ? 'is-active' : ''}" data-category="__none__">
+        <span>Sem Categoria</span>
+        <span class="category-pill-count">${countSemCat}</span>
+      </button>
+    `;
+  }
+
+  pillsList.innerHTML = pillsHtml;
+}
+
+export function definirFiltroCategoriaTorrents(cat) {
+  if (state.filtroTorrentsCategoria === cat && cat !== 'all') {
+    state.filtroTorrentsCategoria = 'all';
+  } else {
+    state.filtroTorrentsCategoria = cat || 'all';
+  }
+
+  atualizarPilulasCategoriasUI();
+  renderizarTabelaTorrents();
+
+  const label = state.filtroTorrentsCategoria === 'all'
+    ? 'Todas as Categorias'
+    : (state.filtroTorrentsCategoria === '__none__' ? 'Sem Categoria' : state.filtroTorrentsCategoria);
+
+  mostrarToast('Filtro de Categoria', `Exibindo categoria: ${label}`, 'info');
+}
+
+export function alternarAgrupamentoPorCategoria() {
+  state.agruparPorCategoria = !state.agruparPorCategoria;
+
+  const btnToggle = document.getElementById('btnToggleCategoryGroup');
+  const btnToggleText = document.getElementById('btnToggleCategoryGroupText');
+
+  if (btnToggle) {
+    btnToggle.classList.toggle('is-active', state.agruparPorCategoria);
+  }
+  if (btnToggleText) {
+    btnToggleText.textContent = state.agruparPorCategoria ? '✓ Agrupado por Categoria' : 'Agrupar por Categoria';
+  }
+
+  renderizarTabelaTorrents();
+
+  mostrarToast(
+    'Visualização de Torrents',
+    state.agruparPorCategoria ? 'Torrents agrupados por categoria.' : 'Visualização linear da lista de torrents.',
+    'info'
+  );
 }
 
 export function filtrarTorrentsInstantaneamente() {
@@ -112,6 +231,7 @@ export function alterarOrdenacaoTorrents(colunaId) {
 
   const labels = {
     name: 'Nome',
+    category: 'Categoria',
     status: 'Status',
     progress: 'Progresso',
     size: 'Tamanho',
@@ -153,6 +273,13 @@ export function ordenarTorrents(lista) {
         const nomeB = String(b.name || '');
         return nomeA.localeCompare(nomeB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
       }
+      case 'category': {
+        const catA = String(a.category || 'Sem Categoria');
+        const catB = String(b.category || 'Sem Categoria');
+        const comp = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
+        if (comp !== 0) return comp * mult;
+        return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+      }
       case 'status': {
         const statusA = mapearStatusLegivel(a.status, a.rawState).label || '';
         const statusB = mapearStatusLegivel(b.status, b.rawState).label || '';
@@ -191,6 +318,64 @@ export function ordenarTorrents(lista) {
 // 3. RENDERIZAÇÃO DA TABELA DE TORRENTS
 // ==========================================
 
+function renderizarLinhaTorrent(t) {
+  const statusInfo = mapearStatusLegivel(t.status, t.rawState);
+  const percentualNum = typeof t.progress === 'number'
+    ? (t.progress > 1 ? t.progress : t.progress * 100)
+    : 0;
+  const percentualStr = percentualNum.toFixed(1) + '%';
+  const isComplete = percentualNum >= 100;
+
+  const tamanhoFormatado = formatarTamanho(t.size);
+  const dlSpeedStr = t.downloadSpeed > 0 ? `↓ ${formatarVelocidade(t.downloadSpeed)}` : '';
+  const upSpeedStr = t.uploadSpeed > 0 ? `↑ ${formatarVelocidade(t.uploadSpeed)}` : '';
+  const speedDisplay = (dlSpeedStr || upSpeedStr)
+    ? `<span class="speed-down">${dlSpeedStr}</span><span class="speed-up">${upSpeedStr}</span>`
+    : '<span style="color: var(--text-muted);">—</span>';
+
+  const isSelected = state.torrentSelecionadoAtual && state.torrentSelecionadoAtual.hash === t.hash;
+  const catNome = t.category ? t.category.trim() : '';
+
+  return `
+    <tr class="torrent-row ${isSelected ? 'selected' : ''}" data-hash="${t.hash}">
+      <td class="cell-action">
+        <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste torrent">
+          <span>${isSelected ? '✓ Selecionado' : 'Ver Arquivos'}</span>
+        </button>
+      </td>
+      <td class="cell-name">
+        <span class="torrent-name-text" title="${t.name}">${t.name}</span>
+        <span class="torrent-hash-sub">${t.hash ? t.hash.substring(0, 10) + '...' : ''}</span>
+      </td>
+      <td class="cell-category">
+        ${catNome ? `<span class="category-badge" title="Categoria: ${catNome}">📁 ${catNome}</span>` : '<span class="category-badge category-badge-none">Sem Categoria</span>'}
+      </td>
+      <td class="cell-status">
+        <span class="status-tag ${statusInfo.classe}">
+          ${statusInfo.label}
+        </span>
+      </td>
+      <td class="cell-progress">
+        <div class="progress-wrapper">
+          <div class="progress-label-row">
+            <span>${percentualStr}</span>
+            <span>${isComplete ? 'Concluído' : ''}</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
+          </div>
+        </div>
+      </td>
+      <td class="cell-size">
+        ${tamanhoFormatado}
+      </td>
+      <td class="cell-speeds">
+        ${speedDisplay}
+      </td>
+    </tr>
+  `;
+}
+
 export function renderizarTabelaTorrents() {
   const torrentsTableBody = document.getElementById('torrentsTableBody');
   const tableCountText = document.getElementById('tableCountText');
@@ -204,9 +389,15 @@ export function renderizarTabelaTorrents() {
   const totalFiltrado = torrentsVisiveis.length;
   const clientNome = activeClientName ? activeClientName.textContent : 'qBittorrent';
 
+  const temFiltroAtivo = Boolean(
+    state.termoBuscaTorrents ||
+    state.filtroTorrentsStatus !== 'all' ||
+    state.filtroTorrentsCategoria !== 'all'
+  );
+
   // Atualiza contadores e badges de status
   if (torrentSearchResultCount) {
-    if (state.termoBuscaTorrents || state.filtroTorrentsStatus !== 'all') {
+    if (temFiltroAtivo) {
       torrentSearchResultCount.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents`;
     } else {
       torrentSearchResultCount.textContent = totalOriginal === 1
@@ -216,7 +407,7 @@ export function renderizarTabelaTorrents() {
   }
 
   if (tableCountText) {
-    if (state.termoBuscaTorrents || state.filtroTorrentsStatus !== 'all') {
+    if (temFiltroAtivo) {
       tableCountText.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents filtrados`;
     } else {
       tableCountText.textContent = totalOriginal === 1
@@ -228,7 +419,7 @@ export function renderizarTabelaTorrents() {
   if (totalOriginal === 0) {
     torrentsTableBody.innerHTML = `
       <tr class="empty-state-row">
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-state">
             <div class="empty-icon">📂</div>
             <h4>Nenhum torrent encontrado</h4>
@@ -243,11 +434,11 @@ export function renderizarTabelaTorrents() {
   if (totalFiltrado === 0) {
     torrentsTableBody.innerHTML = `
       <tr class="empty-state-row">
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-state">
             <div class="empty-icon">🔍</div>
             <h4>Nenhum torrent corresponde aos filtros</h4>
-            <p>Tente alterar o status selecionado acima ou ajustar o termo de pesquisa.</p>
+            <p>Tente alterar a categoria, o status selecionado ou ajustar o termo de pesquisa.</p>
           </div>
         </td>
       </tr>
@@ -255,61 +446,54 @@ export function renderizarTabelaTorrents() {
     return;
   }
 
-  torrentsTableBody.innerHTML = torrentsVisiveis.map((t) => {
-    const statusInfo = mapearStatusLegivel(t.status, t.rawState);
-    const percentualNum = typeof t.progress === 'number'
-      ? (t.progress > 1 ? t.progress : t.progress * 100)
-      : 0;
-    const percentualStr = percentualNum.toFixed(1) + '%';
-    const isComplete = percentualNum >= 100;
+  let html = '';
 
-    const tamanhoFormatado = formatarTamanho(t.size);
-    const dlSpeedStr = t.downloadSpeed > 0 ? `↓ ${formatarVelocidade(t.downloadSpeed)}` : '';
-    const upSpeedStr = t.uploadSpeed > 0 ? `↑ ${formatarVelocidade(t.uploadSpeed)}` : '';
-    const speedDisplay = (dlSpeedStr || upSpeedStr)
-      ? `<span class="speed-down">${dlSpeedStr}</span><span class="speed-up">${upSpeedStr}</span>`
-      : '<span style="color: var(--text-muted);">—</span>';
+  if (state.agruparPorCategoria) {
+    // Agrupa os torrents visíveis por categoria
+    const grupos = new Map();
 
-    const isSelected = state.torrentSelecionadoAtual && state.torrentSelecionadoAtual.hash === t.hash;
+    torrentsVisiveis.forEach((t) => {
+      const catKey = (t.category && t.category.trim()) || '__none__';
+      if (!grupos.has(catKey)) {
+        grupos.set(catKey, []);
+      }
+      grupos.get(catKey).push(t);
+    });
 
-    return `
-      <tr class="torrent-row ${isSelected ? 'selected' : ''}" data-hash="${t.hash}">
-        <td class="cell-action">
-          <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste torrent">
-            <span>${isSelected ? '✓ Selecionado' : 'Ver Arquivos'}</span>
-          </button>
-        </td>
-        <td class="cell-name">
-          <span class="torrent-name-text" title="${t.name}">${t.name}</span>
-          <span class="torrent-hash-sub">${t.hash ? t.hash.substring(0, 10) + '...' : ''}</span>
-        </td>
-        <td class="cell-status">
-          <span class="status-tag ${statusInfo.classe}">
-            ${statusInfo.label}
-          </span>
-        </td>
-        <td class="cell-progress">
-          <div class="progress-wrapper">
-            <div class="progress-label-row">
-              <span>${percentualStr}</span>
-              <span>${isComplete ? 'Concluído' : ''}</span>
+    const chavesOrdenadas = Array.from(grupos.keys()).sort((a, b) => {
+      if (a === '__none__') return 1;
+      if (b === '__none__') return -1;
+      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+    });
+
+    chavesOrdenadas.forEach((catKey) => {
+      const listaDoGrupo = grupos.get(catKey) || [];
+      const catNome = catKey === '__none__' ? 'Sem Categoria' : catKey;
+      let totalBytesGrupo = 0;
+      listaDoGrupo.forEach((t) => { totalBytesGrupo += (t.size || 0); });
+
+      html += `
+        <tr class="category-group-row">
+          <td colspan="7">
+            <div class="category-group-header">
+              <span class="category-group-icon">📁</span>
+              <span class="category-group-name">${catNome}</span>
+              <span class="category-group-count">${listaDoGrupo.length} torrent${listaDoGrupo.length === 1 ? '' : 's'}</span>
+              <span class="category-group-size">${formatarTamanho(totalBytesGrupo)}</span>
             </div>
-            <div class="progress-track">
-              <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
-            </div>
-          </div>
-        </td>
-        <td class="cell-size">
-          ${tamanhoFormatado}
-        </td>
-        <td class="cell-speeds">
-          ${speedDisplay}
-        </td>
-      </tr>
-    `;
-  }).join('');
+          </td>
+        </tr>
+      `;
 
-  // Adiciona listener de clique em cada linha / botão de seleção
+      html += listaDoGrupo.map(renderizarLinhaTorrent).join('');
+    });
+  } else {
+    html = torrentsVisiveis.map(renderizarLinhaTorrent).join('');
+  }
+
+  torrentsTableBody.innerHTML = html;
+
+  // Adiciona listener de clique em cada linha para seleção
   torrentsVisiveis.forEach((t) => {
     const row = torrentsTableBody.querySelector(`.torrent-row[data-hash="${t.hash}"]`);
     row?.addEventListener('click', () => selecionarTorrent(t));
@@ -375,6 +559,7 @@ export async function carregarTorrents(isManual = false) {
 
       atualizarIndicadoresOrdenacaoTorrentsUI();
       atualizarIndicadoresFiltroStatusTorrentsUI();
+      atualizarPilulasCategoriasUI();
       renderizarTabelaTorrents();
 
       if (isManual) {
@@ -387,7 +572,7 @@ export async function carregarTorrents(isManual = false) {
       if (torrentsTableBody) {
         torrentsTableBody.innerHTML = `
           <tr class="empty-state-row">
-            <td colspan="6">
+            <td colspan="7">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
                 <h4>Falha ao carregar torrents</h4>
@@ -408,7 +593,7 @@ export async function carregarTorrents(isManual = false) {
     if (torrentsTableBody) {
       torrentsTableBody.innerHTML = `
         <tr class="empty-state-row">
-          <td colspan="6">
+          <td colspan="7">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
               <h4>Erro de rede</h4>
@@ -442,6 +627,8 @@ export function initTorrentsTable() {
   const statsGrid = document.getElementById('torrentStatusStatsGrid');
   const inputSearch = document.getElementById('inputSearchTorrents');
   const btnClearSearch = document.getElementById('btnClearTorrentSearch');
+  const btnToggleGroup = document.getElementById('btnToggleCategoryGroup');
+  const categoryPillsList = document.getElementById('torrentCategoryPillsList');
 
   btnRecarregarTorrents?.addEventListener('click', () => {
     carregarTorrents(true);
@@ -483,7 +670,21 @@ export function initTorrentsTable() {
     }
   });
 
-  // Pesquisa instantânea por nome ou hash
+  // Listener de clique nas pílulas de categoria
+  categoryPillsList?.addEventListener('click', (e) => {
+    const pill = e.target.closest('.category-pill');
+    if (!pill) return;
+
+    const cat = pill.dataset.category;
+    if (cat !== undefined) {
+      definirFiltroCategoriaTorrents(cat);
+    }
+  });
+
+  // Alternar agrupamento em seções por categoria
+  btnToggleGroup?.addEventListener('click', alternarAgrupamentoPorCategoria);
+
+  // Pesquisa instantânea por nome, categoria ou hash
   inputSearch?.addEventListener('input', filtrarTorrentsInstantaneamente);
   inputSearch?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

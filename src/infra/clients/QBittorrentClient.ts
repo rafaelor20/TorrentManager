@@ -278,6 +278,8 @@ export class QBittorrentClient implements TorrentClient {
         rawState: t.state,
         savePath: t.save_path,
         contentPath: t.content_path,
+        category: t.category || '',
+        tags: typeof t.tags === 'string' ? t.tags.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
       }));
     } catch (err: any) {
       if (err.message?.includes('403') || err.message?.includes('401')) {
