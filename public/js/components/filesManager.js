@@ -934,8 +934,12 @@ export async function selecionarTorrent(torrent) {
 
   const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
   if (selectedTorrentStatus) selectedTorrentStatus.textContent = statusInfo.label;
-  if (filesHashTag) filesHashTag.textContent = `Hash: ${torrent.hash}`;
-  if (filesCountText) filesCountText.textContent = 'Carregando arquivos do torrent...';
+  if (filesHashTag) {
+    filesHashTag.textContent = torrent.isCategoryVirtual
+      ? `Categoria Unificada • ${torrent.torrentsList?.length || 0} torrents`
+      : `Hash: ${torrent.hash}`;
+  }
+  if (filesCountText) filesCountText.textContent = 'Carregando arquivos...';
   if (searchResultCount) searchResultCount.textContent = 'Carregando lista...';
 
   const colunasVisiveis = obterColunasVisiveis();
@@ -960,6 +964,74 @@ export async function selecionarTorrent(torrent) {
   }
 
   try {
+    if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
+      // Carrega arquivos de todos os torrents membros da categoria em paralelo
+      const resultados = await Promise.all(
+        torrent.torrentsList.map(async (t) => {
+          const { ok, data } = await apiService.getTorrentFiles(t.hash);
+          return {
+            torrent: t,
+            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
+          };
+        })
+      );
+
+      let todosArquivos = [];
+      let globalIndex = 0;
+      state.arquivosSelecionadosIndices = new Set();
+
+      resultados.forEach(({ torrent: t, files }) => {
+        files.forEach((f, idx) => {
+          const fileIndex = typeof f.index === 'number' ? f.index : idx;
+          const rawName = f.name || `arquivo_${fileIndex}`;
+          const onlyFileName = extrairApenasNomeArquivo(rawName, f.path);
+          const dirInterno = extrairApenasCaminho(f.path, rawName);
+          const dirConsolidado = dirInterno === './' ? `[${t.name}]` : `[${t.name}]/${dirInterno}`;
+
+          const itemConsolidado = {
+            ...f,
+            index: globalIndex,
+            _globalIndex: globalIndex,
+            _fileIndex: globalIndex,
+            _originTorrentHash: t.hash,
+            _originTorrentName: t.name,
+            _originFileIndex: fileIndex,
+            _fileName: onlyFileName,
+            _dirPath: dirConsolidado,
+            _searchNormalized: normalizarTextoBusca(`${onlyFileName} ${dirConsolidado} ${t.name} ${f.name || ''} ${f.path || ''}`),
+          };
+          itemConsolidado._searchLower = itemConsolidado._searchNormalized;
+
+          if (itemConsolidado.priority !== 0) {
+            state.arquivosSelecionadosIndices.add(globalIndex);
+          }
+
+          todosArquivos.push(itemConsolidado);
+          globalIndex++;
+        });
+      });
+
+      state.todosArquivosDoTorrent = todosArquivos;
+
+      if (selectedTorrentMeta) {
+        selectedTorrentMeta.textContent = `${todosArquivos.length.toLocaleString('pt-BR')} arquivos consolidados de ${torrent.torrentsList.length} torrents • ${formatarTamanho(torrent.size)} no total`;
+      }
+
+      state.termoBuscaAtual = '';
+      state.arquivosFiltradosAtuais = obterArquivosVisiveis();
+      if (filesScrollArea) filesScrollArea.scrollTop = 0;
+
+      atualizarIndicadoresOrdenacaoUI();
+      renderizarTabelaArquivosVirtualizada();
+
+      mostrarToast(
+        'Categoria Consolidada',
+        `${todosArquivos.length.toLocaleString('pt-BR')} arquivos de ${torrent.torrentsList.length} torrents carregados como 1 torrent unificado!`,
+        'success'
+      );
+      return;
+    }
+
     const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
 
     if (ok && data.sucesso) {
@@ -1106,11 +1178,13 @@ export async function salvarPrioridades() {
     return;
   }
 
+  const isVirtual = Boolean(state.torrentSelecionadoAtual.isCategoryVirtual);
+
   const marcadosIndices = [];
   const desmarcadosIndices = [];
 
   state.todosArquivosDoTorrent.forEach((f, idx) => {
-    const fileIndex = f.index !== undefined ? f.index : idx;
+    const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : idx);
     if (state.arquivosSelecionadosIndices.has(fileIndex)) {
       marcadosIndices.push(fileIndex);
     } else {
@@ -1143,6 +1217,63 @@ export async function salvarPrioridades() {
   }
 
   try {
+    if (isVirtual) {
+      // Agrupa os arquivos por torrent de origem
+      const porTorrent = new Map();
+
+      state.todosArquivosDoTorrent.forEach((f) => {
+        const hash = f._originTorrentHash;
+        const originIndex = f._originFileIndex !== undefined ? f._originFileIndex : f.index;
+        const globalIdx = f._fileIndex !== undefined ? f._fileIndex : f.index;
+
+        if (!porTorrent.has(hash)) {
+          porTorrent.set(hash, { marcados: [], desmarcados: [] });
+        }
+
+        if (state.arquivosSelecionadosIndices.has(globalIdx)) {
+          porTorrent.get(hash).marcados.push(originIndex);
+        } else {
+          porTorrent.get(hash).desmarcados.push(originIndex);
+        }
+      });
+
+      let totalApagados = 0;
+      let totalBytesLiberados = 0;
+      let algumErro = false;
+
+      await Promise.all(
+        Array.from(porTorrent.entries()).map(async ([hash, { marcados, desmarcados }]) => {
+          const { ok, data } = await apiService.applyPriority(hash, {
+            marcadosIndices: marcados,
+            desmarcadosIndices: desmarcados,
+            apagarDesativados,
+          });
+          if (ok && data.sucesso) {
+            if (data.detalhes?.arquivosApagados) {
+              totalApagados += (data.detalhes.arquivosApagados || 0);
+              totalBytesLiberados += (data.detalhes.espacoLiberadoBytes || 0);
+            }
+          } else {
+            algumErro = true;
+          }
+        })
+      );
+
+      if (!algumErro) {
+        let msg = `Prioridades sincronizadas para todos os ${porTorrent.size} torrents da categoria! (${marcadosIndices.length} marcados, ${desmarcadosIndices.length} desativados).`;
+        if (apagarDesativados && totalApagados > 0) {
+          msg += ` ${totalApagados} arquivo(s) apagado(s) (${formatarTamanho(totalBytesLiberados)} liberados).`;
+        }
+        mostrarToast('Prioridades da Categoria Aplicadas!', msg, 'success');
+        setFeedback('success', 'Categoria Consolidada Sincronizada', msg);
+        await selecionarTorrent(state.torrentSelecionadoAtual);
+      } else {
+        mostrarToast('Aviso', 'Alguns torrents da categoria podem não ter atualizado todas as prioridades.', 'warning');
+        await selecionarTorrent(state.torrentSelecionadoAtual);
+      }
+      return;
+    }
+
     const hash = state.torrentSelecionadoAtual.hash;
     const { ok, data } = await apiService.applyPriority(hash, {
       marcadosIndices,
@@ -1196,42 +1327,6 @@ export async function salvarPrioridades() {
   }
 }
 
-// ==========================================
-// 9. INICIALIZAÇÃO DE LISTENERS
-// ==========================================
-
-export function initFilesManager() {
-  const filesTableBody = document.getElementById('filesTableBody');
-  const filesScrollArea = document.getElementById('filesScrollArea');
-  const btnSelectAll = document.getElementById('btnSelectAll');
-  const btnDeselectAll = document.getElementById('btnDeselectAll');
-  const btnInvertSelection = document.getElementById('btnInvertSelection');
-  const inputSearchFiles = document.getElementById('inputSearchFiles');
-  const filterOnlySelected = document.getElementById('filterOnlySelected');
-  const btnClearSearch = document.getElementById('btnClearSearch');
-  const btnFecharArquivos = document.getElementById('btnFecharArquivos');
-  const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
-  const torrentFilesSection = document.getElementById('torrentFilesSection');
-  const headerRow = document.getElementById('filesTableHeaderRow');
-
-  // Inicializa Resizers, Drag & Drop e Menu de Contexto
-  initColumnResizers();
-  initColumnReordering();
-  initFilesContextMenu();
-
-  // Listener de clique nos cabeçalhos para ordenação
-  headerRow?.addEventListener('click', (e) => {
-    if (e.target.closest('.col-resizer')) return;
-
-    const th = e.target.closest('th.sortable-th');
-    if (!th) return;
-
-    const colId = th.dataset.col;
-    if (colId) {
-      alterarOrdenacao(colId);
-    }
-  });
-
 // Função para solicitar a abertura da pasta do arquivo no sistema operacional
 export async function acaoAbrirPastaArquivo(fileIndex) {
   if (!state.torrentSelecionadoAtual) return;
@@ -1256,8 +1351,10 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
   mostrarToast('Abrindo Pasta...', `Abrindo localização de "${nomeArquivo}" no Explorador...`, 'info');
 
   try {
-    const hash = state.torrentSelecionadoAtual.hash;
-    const { ok, data } = await apiService.openFileFolder(hash, fileIndex);
+    const hash = (f && f._originTorrentHash) ? f._originTorrentHash : state.torrentSelecionadoAtual.hash;
+    const originFileIndex = (f && f._originFileIndex !== undefined) ? f._originFileIndex : fileIndex;
+
+    const { ok, data } = await apiService.openFileFolder(hash, originFileIndex);
 
     if (ok && data.sucesso) {
       mostrarToast(

@@ -25,6 +25,7 @@ export const state = {
   filtroTorrentsStatus: 'all', // 'all' | 'completed' | 'downloading' | 'paused'
   filtroTorrentsCategoria: 'all', // 'all' | '__none__' (sem categoria) | '<nome_categoria>'
   agruparPorCategoria: false, // boolean: visualização agrupada em blocos por categoria
+  modoConsolidadoCategoria: false, // boolean: funde os torrents de cada categoria em 1 único torrent virtual consolidado
   categoriasDisponiveis: [], // lista de categorias únicas encontradas
   termoBuscaTorrents: '',
   torrentSortColumn: 'name', // 'name' | 'category' | 'status' | 'progress' | 'size' | 'speeds'

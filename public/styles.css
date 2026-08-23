@@ -379,8 +379,9 @@ body {
   flex-wrap: wrap;
 }
 
-/* Botão de alternar agrupamento por categoria */
-.btn-toggle-category-group {
+/* Botão de alternar agrupamento / consolidação por categoria */
+.btn-toggle-category-group,
+.btn-toggle-consolidated-category {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -395,13 +396,15 @@ body {
   cursor: pointer;
 }
 
-.btn-toggle-category-group:hover {
+.btn-toggle-category-group:hover,
+.btn-toggle-consolidated-category:hover {
   background: rgba(56, 189, 248, 0.1);
   border-color: rgba(56, 189, 248, 0.4);
   color: #38bdf8;
 }
 
-.btn-toggle-category-group.is-active {
+.btn-toggle-category-group.is-active,
+.btn-toggle-consolidated-category.is-active {
   background: rgba(56, 189, 248, 0.18);
   border-color: var(--accent-cyan);
   color: #fff;

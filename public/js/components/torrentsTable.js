@@ -61,6 +61,11 @@ export function obterTorrentsVisiveis() {
     return true;
   });
 
+  if (state.modoConsolidadoCategoria) {
+    const consolidados = gerarTorrentsConsolidadosPorCategoria(filtrados);
+    return ordenarTorrents(consolidados);
+  }
+
   return ordenarTorrents(filtrados);
 }
 
@@ -181,6 +186,14 @@ export function definirFiltroCategoriaTorrents(cat) {
 export function alternarAgrupamentoPorCategoria() {
   state.agruparPorCategoria = !state.agruparPorCategoria;
 
+  if (state.agruparPorCategoria && state.modoConsolidadoCategoria) {
+    state.modoConsolidadoCategoria = false;
+    const btnConsolidar = document.getElementById('btnToggleConsolidatedCategory');
+    const btnConsolidarText = document.getElementById('btnToggleConsolidatedCategoryText');
+    if (btnConsolidar) btnConsolidar.classList.remove('is-active');
+    if (btnConsolidarText) btnConsolidarText.textContent = 'Fundir como 1 Torrent';
+  }
+
   const btnToggle = document.getElementById('btnToggleCategoryGroup');
   const btnToggleText = document.getElementById('btnToggleCategoryGroupText');
 
@@ -198,6 +211,110 @@ export function alternarAgrupamentoPorCategoria() {
     state.agruparPorCategoria ? 'Torrents agrupados por categoria.' : 'Visualização linear da lista de torrents.',
     'info'
   );
+}
+
+export function alternarModoConsolidadoCategoria() {
+  state.modoConsolidadoCategoria = !state.modoConsolidadoCategoria;
+
+  if (state.modoConsolidadoCategoria && state.agruparPorCategoria) {
+    state.agruparPorCategoria = false;
+    const btnGroup = document.getElementById('btnToggleCategoryGroup');
+    const btnGroupText = document.getElementById('btnToggleCategoryGroupText');
+    if (btnGroup) btnGroup.classList.remove('is-active');
+    if (btnGroupText) btnGroupText.textContent = 'Agrupar por Categoria';
+  }
+
+  const btnConsolidar = document.getElementById('btnToggleConsolidatedCategory');
+  const btnConsolidarText = document.getElementById('btnToggleConsolidatedCategoryText');
+
+  if (btnConsolidar) {
+    btnConsolidar.classList.toggle('is-active', state.modoConsolidadoCategoria);
+  }
+  if (btnConsolidarText) {
+    btnConsolidarText.textContent = state.modoConsolidadoCategoria ? '✓ Categorias como 1 Torrent' : 'Fundir como 1 Torrent';
+  }
+
+  renderizarTabelaTorrents();
+
+  mostrarToast(
+    'Modo Categoria Unificada',
+    state.modoConsolidadoCategoria
+      ? 'Torrents de cada categoria consolidados como 1 torrent virtual unificado.'
+      : 'Visualização normal de torrents individuais.',
+    'info'
+  );
+}
+
+export function gerarTorrentsConsolidadosPorCategoria(torrents) {
+  if (!torrents || torrents.length === 0) return [];
+
+  const grupos = new Map();
+
+  torrents.forEach((t) => {
+    const catKey = (t.category && t.category.trim()) || '__none__';
+    if (!grupos.has(catKey)) {
+      grupos.set(catKey, []);
+    }
+    grupos.get(catKey).push(t);
+  });
+
+  const consolidados = [];
+
+  grupos.forEach((membros, catKey) => {
+    const catNome = catKey === '__none__' ? 'Sem Categoria' : catKey;
+    let bytesTotal = 0;
+    let downloadSpeedTotal = 0;
+    let uploadSpeedTotal = 0;
+    let bytesBaixadosTotal = 0;
+    let hasDownloading = false;
+    let hasPaused = false;
+    let allCompleted = true;
+
+    membros.forEach((t) => {
+      const size = Number(t.size || 0);
+      bytesTotal += size;
+      downloadSpeedTotal += Number(t.downloadSpeed || 0);
+      uploadSpeedTotal += Number(t.uploadSpeed || 0);
+
+      const prog = typeof t.progress === 'number' ? (t.progress > 1 ? t.progress / 100 : t.progress) : 0;
+      bytesBaixadosTotal += size * prog;
+
+      if (t.status === 'downloading') hasDownloading = true;
+      if (t.status === 'paused') hasPaused = true;
+      if (t.status !== 'completed' && t.status !== 'uploading' && prog < 1) allCompleted = false;
+    });
+
+    const progressoConsolidado = bytesTotal > 0 ? (bytesBaixadosTotal / bytesTotal) : (allCompleted ? 1 : 0);
+
+    let statusConsolidado = 'paused';
+    if (hasDownloading) {
+      statusConsolidado = 'downloading';
+    } else if (allCompleted) {
+      statusConsolidado = 'completed';
+    } else if (hasPaused) {
+      statusConsolidado = 'paused';
+    } else {
+      statusConsolidado = membros[0]?.status || 'downloading';
+    }
+
+    consolidados.push({
+      id: `cat-virtual-${catKey}`,
+      hash: `cat-virtual-${catKey}`,
+      name: `📁 ${catNome}`,
+      category: catKey === '__none__' ? '' : catKey,
+      isCategoryVirtual: true,
+      categoryName: catNome,
+      torrentsList: membros,
+      size: bytesTotal,
+      progress: progressoConsolidado,
+      status: statusConsolidado,
+      downloadSpeed: downloadSpeedTotal,
+      uploadSpeed: uploadSpeedTotal,
+      rawState: statusConsolidado,
+    });
+  });
+
+  return consolidados;
 }
 
 export function filtrarTorrentsInstantaneamente() {
@@ -334,18 +451,27 @@ function renderizarLinhaTorrent(t) {
     : '<span style="color: var(--text-muted);">—</span>';
 
   const isSelected = state.torrentSelecionadoAtual && state.torrentSelecionadoAtual.hash === t.hash;
-  const catNome = t.category ? t.category.trim() : '';
+  const catNome = t.categoryName || (t.category ? t.category.trim() : '');
+
+  const isVirtual = Boolean(t.isCategoryVirtual);
+  const hashSub = isVirtual
+    ? `${t.torrentsList.length} torrents consolidados • Clique para ver todos os arquivos`
+    : (t.hash ? t.hash.substring(0, 10) + '...' : '');
+
+  const btnText = isSelected
+    ? '✓ Selecionado'
+    : (isVirtual ? `Ver ${t.torrentsList.length} Torrents` : 'Ver Arquivos');
 
   return `
-    <tr class="torrent-row ${isSelected ? 'selected' : ''}" data-hash="${t.hash}">
+    <tr class="torrent-row ${isSelected ? 'selected' : ''} ${isVirtual ? 'is-virtual-category-row' : ''}" data-hash="${t.hash}">
       <td class="cell-action">
-        <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste torrent">
-          <span>${isSelected ? '✓ Selecionado' : 'Ver Arquivos'}</span>
+        <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste item">
+          <span>${btnText}</span>
         </button>
       </td>
       <td class="cell-name">
         <span class="torrent-name-text" title="${t.name}">${t.name}</span>
-        <span class="torrent-hash-sub">${t.hash ? t.hash.substring(0, 10) + '...' : ''}</span>
+        <span class="torrent-hash-sub">${hashSub}</span>
       </td>
       <td class="cell-category">
         ${catNome ? `<span class="category-badge" title="Categoria: ${catNome}">📁 ${catNome}</span>` : '<span class="category-badge category-badge-none">Sem Categoria</span>'}
@@ -681,8 +807,13 @@ export function initTorrentsTable() {
     }
   });
 
+  const btnToggleConsolidated = document.getElementById('btnToggleConsolidatedCategory');
+
   // Alternar agrupamento em seções por categoria
   btnToggleGroup?.addEventListener('click', alternarAgrupamentoPorCategoria);
+
+  // Alternar modo de consolidação de categorias como 1 torrent
+  btnToggleConsolidated?.addEventListener('click', alternarModoConsolidadoCategoria);
 
   // Pesquisa instantânea por nome, categoria ou hash
   inputSearch?.addEventListener('input', filtrarTorrentsInstantaneamente);
