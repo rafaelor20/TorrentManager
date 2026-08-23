@@ -209,7 +209,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     try {
       const hashParam = req.params.hash;
       const hash = Array.isArray(hashParam) ? hashParam[0] : hashParam;
-      const { marcadosIndices, desmarcadosIndices, prioridade, indices } = req.body || {};
+      const { marcadosIndices, desmarcadosIndices, prioridade, indices, apagarDesativados } = req.body || {};
 
       if (!hash) {
         return res.status(400).json({
@@ -222,11 +222,12 @@ export function createRouter(torrentClient: TorrentClient): Router {
       if (Array.isArray(marcadosIndices) || Array.isArray(desmarcadosIndices)) {
         const marcados = Array.isArray(marcadosIndices) ? marcadosIndices.map(Number) : [];
         const desmarcados = Array.isArray(desmarcadosIndices) ? desmarcadosIndices.map(Number) : [];
+        const apagarFisicos = Boolean(apagarDesativados);
 
-        let resultado: { sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number };
+        let resultado: any;
 
         if (torrentClient.aplicarPrioridadesEmLote) {
-          resultado = await torrentClient.aplicarPrioridadesEmLote(hash, marcados, desmarcados);
+          resultado = await torrentClient.aplicarPrioridadesEmLote(hash, marcados, desmarcados, apagarFisicos);
         } else {
           let okMarcados = true;
           let okDesmarcados = true;
@@ -236,16 +237,33 @@ export function createRouter(torrentClient: TorrentClient): Router {
           if (desmarcados.length > 0) {
             okDesmarcados = await torrentClient.alterarPrioridades(hash, desmarcados, 0);
           }
+          let exclusaoRes: any;
+          if (apagarFisicos && desmarcados.length > 0 && torrentClient.apagarArquivos) {
+            exclusaoRes = await torrentClient.apagarArquivos(hash, desmarcados);
+          }
           resultado = {
-            sucesso: okMarcados && okDesmarcados,
+            sucesso: okMarcados && okDesmarcados && (!exclusaoRes || exclusaoRes.sucesso),
             marcadosAlterados: marcados.length,
             desmarcadosAlterados: desmarcados.length,
+            arquivosApagados: exclusaoRes?.arquivosApagados ?? 0,
+            espacoLiberadoBytes: exclusaoRes?.espacoLiberadoBytes ?? 0,
+            detalhesExclusao: exclusaoRes
+              ? {
+                  apagados: exclusaoRes.apagados,
+                  falhas: exclusaoRes.falhas,
+                }
+              : undefined,
           };
+        }
+
+        let mensagem = `Prioridades aplicadas com sucesso no ${torrentClient.obterNome()}! (${resultado.marcadosAlterados} marcados como Normal, ${resultado.desmarcadosAlterados} como Não Baixar).`;
+        if (apagarFisicos && resultado.arquivosApagados !== undefined && resultado.arquivosApagados > 0) {
+          mensagem += ` ${resultado.arquivosApagados} arquivo(s) apagado(s) do disco local.`;
         }
 
         return res.json({
           sucesso: resultado.sucesso,
-          mensagem: `Prioridades aplicadas com sucesso no ${torrentClient.obterNome()}! (${resultado.marcadosAlterados} marcados como Normal, ${resultado.desmarcadosAlterados} como Não Baixar).`,
+          mensagem,
           detalhes: resultado,
         });
       }

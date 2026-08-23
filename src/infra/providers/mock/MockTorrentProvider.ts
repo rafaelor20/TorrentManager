@@ -77,7 +77,8 @@ export class MockTorrentClient implements TorrentClient {
   async aplicarPrioridadesEmLote(
     torrentHash: string,
     marcados: number[],
-    desmarcados: number[]
+    desmarcados: number[],
+    apagarDesativados: boolean = false
   ): Promise<BatchPriorityResult> {
     await this.alterarPrioridades(torrentHash, marcados, 1);
     await this.alterarPrioridades(torrentHash, desmarcados, 0);
@@ -85,6 +86,8 @@ export class MockTorrentClient implements TorrentClient {
       sucesso: true,
       marcadosAlterados: marcados.length,
       desmarcadosAlterados: desmarcados.length,
+      arquivosApagados: apagarDesativados ? desmarcados.length : 0,
+      espacoLiberadoBytes: apagarDesativados ? 1024 * 1024 * 400 : 0,
     };
   }
 

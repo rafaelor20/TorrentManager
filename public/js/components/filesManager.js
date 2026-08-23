@@ -1027,15 +1027,72 @@ export async function selecionarTorrent(torrent) {
   }
 }
 
+export function perguntarExclusaoArquivosFisicos(qtdDesativados) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modalConfirmarExclusaoArquivos');
+    const qtdEl = document.getElementById('modalExclusaoQtdDesativados');
+    const btnFechar = document.getElementById('btnFecharModalExclusao');
+    const btnCancelar = document.getElementById('btnModalExclusaoCancelar');
+    const btnApenasDesativar = document.getElementById('btnModalExclusaoApenasDesativar');
+    const btnApagarFisicos = document.getElementById('btnModalExclusaoApagarFisicos');
+
+    if (!modal) {
+      const resposta = window.confirm(
+        `Você marcou ${qtdDesativados} arquivo(s) como desativados (Não Baixar).\n\nDeseja também apagá-los do sistema de arquivos (disco)?\n- OK: Sim, apagar do disco\n- Cancelar: Não, apenas desativar`
+      );
+      resolve(resposta);
+      return;
+    }
+
+    if (qtdEl) qtdEl.textContent = qtdDesativados.toLocaleString('pt-BR');
+    modal.style.display = 'flex';
+
+    const fechar = (resultado) => {
+      modal.style.display = 'none';
+      cleanup();
+      resolve(resultado);
+    };
+
+    const onClickFechar = () => fechar(null);
+    const onClickCancelar = () => fechar(null);
+    const onClickApenasDesativar = () => fechar(false);
+    const onClickApagarFisicos = () => fechar(true);
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        fechar(null);
+      }
+    };
+
+    const onBackdropClick = (e) => {
+      if (e.target === modal) {
+        fechar(null);
+      }
+    };
+
+    const cleanup = () => {
+      btnFechar?.removeEventListener('click', onClickFechar);
+      btnCancelar?.removeEventListener('click', onClickCancelar);
+      btnApenasDesativar?.removeEventListener('click', onClickApenasDesativar);
+      btnApagarFisicos?.removeEventListener('click', onClickApagarFisicos);
+      document.removeEventListener('keydown', onKeyDown);
+      modal.removeEventListener('click', onBackdropClick);
+    };
+
+    btnFechar?.addEventListener('click', onClickFechar);
+    btnCancelar?.addEventListener('click', onClickCancelar);
+    btnApenasDesativar?.addEventListener('click', onClickApenasDesativar);
+    btnApagarFisicos?.addEventListener('click', onClickApagarFisicos);
+    document.addEventListener('keydown', onKeyDown);
+    modal.addEventListener('click', onBackdropClick);
+  });
+}
+
 export async function salvarPrioridades() {
   if (!state.torrentSelecionadoAtual || state.todosArquivosDoTorrent.length === 0) {
     mostrarToast('Aviso', 'Nenhum torrent ou arquivo selecionado para aplicar prioridades.', 'info');
     return;
   }
-
-  const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
-  const btnSalvarPrioridadesText = document.getElementById('btnSalvarPrioridadesText');
-  const savePrioIcon = document.getElementById('savePrioIcon');
 
   const marcadosIndices = [];
   const desmarcadosIndices = [];
@@ -1049,29 +1106,67 @@ export async function salvarPrioridades() {
     }
   });
 
+  let apagarDesativados = false;
+
+  // Se houver arquivos desativados (Não Baixar / prioridade 0), pergunta se deve apagá-los do disco
+  if (desmarcadosIndices.length > 0) {
+    const decisao = await perguntarExclusaoArquivosFisicos(desmarcadosIndices.length);
+    if (decisao === null) {
+      // Usuário cancelou a operação no modal
+      return;
+    }
+    apagarDesativados = Boolean(decisao);
+  }
+
+  const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
+  const btnSalvarPrioridadesText = document.getElementById('btnSalvarPrioridadesText');
+  const savePrioIcon = document.getElementById('savePrioIcon');
+
   if (btnSalvarPrioridades) btnSalvarPrioridades.disabled = true;
   if (savePrioIcon) savePrioIcon.classList.add('spin-animation');
-  if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = 'Enviando ao qBittorrent...';
+  if (btnSalvarPrioridadesText) {
+    btnSalvarPrioridadesText.textContent = apagarDesativados
+      ? 'Excluindo arquivos e sincronizando...'
+      : 'Enviando ao qBittorrent...';
+  }
 
   try {
     const hash = state.torrentSelecionadoAtual.hash;
     const { ok, data } = await apiService.applyPriority(hash, {
       marcadosIndices,
       desmarcadosIndices,
+      apagarDesativados,
     });
 
     if (ok && data.sucesso) {
-      mostrarToast(
-        'Prioridades Aplicadas!',
-        `${marcadosIndices.length} arquivos marcados como Normal (1) e ${desmarcadosIndices.length} como Não Baixar (0).`,
-        'success'
-      );
+      if (apagarDesativados && data.detalhes?.arquivosApagados !== undefined) {
+        const qtdApagados = data.detalhes.arquivosApagados;
+        const espacoStr = formatarTamanho(data.detalhes.espacoLiberadoBytes || 0);
 
-      setFeedback(
-        'success',
-        'Prioridades Atualizadas no qBittorrent',
-        `As prioridades do torrent "${state.torrentSelecionadoAtual.name}" foram sincronizadas com sucesso com o cliente BitTorrent.`
-      );
+        mostrarToast(
+          'Prioridades e Disco Atualizados!',
+          `${marcadosIndices.length} arquivos marcados (Normal), ${desmarcadosIndices.length} desativados e ${qtdApagados} arquivo(s) apagado(s) do disco (${espacoStr} liberados).`,
+          'success'
+        );
+
+        setFeedback(
+          'success',
+          'Prioridades e Disco Atualizados',
+          `As prioridades foram sincronizadas com o qBittorrent e ${qtdApagados} arquivo(s) desativado(s) foram apagados do disco local (${espacoStr} liberados).`
+        );
+      } else {
+        mostrarToast(
+          'Prioridades Aplicadas!',
+          `${marcadosIndices.length} arquivos marcados como Normal (1) e ${desmarcadosIndices.length} como Não Baixar (0).`,
+          'success'
+        );
+
+        setFeedback(
+          'success',
+          'Prioridades Atualizadas no qBittorrent',
+          `As prioridades do torrent "${state.torrentSelecionadoAtual.name}" foram sincronizadas com sucesso com o cliente BitTorrent.`
+        );
+      }
 
       await selecionarTorrent(state.torrentSelecionadoAtual);
     } else {
