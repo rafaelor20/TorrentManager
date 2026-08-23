@@ -263,13 +263,38 @@
           <div class="table-responsive">
             <table class="torrent-table" id="torrentTable">
               <thead>
-                <tr>
+                <tr id="torrentTableHeaderRow">
                   <th class="th-action">Seleção</th>
-                  <th class="th-name">Nome</th>
-                  <th class="th-status">Status</th>
-                  <th class="th-progress">Progresso</th>
-                  <th class="th-size">Tamanho</th>
-                  <th class="th-speeds">Velocidade</th>
+                  <th class="th-name sortable-th" data-col="name" title="Clique para ordenar por Nome">
+                    <div class="th-content">
+                      <span class="th-title-text">Nome</span>
+                      <span class="sort-arrow" data-sort-for="name">↕</span>
+                    </div>
+                  </th>
+                  <th class="th-status sortable-th" data-col="status" title="Clique para ordenar por Status">
+                    <div class="th-content">
+                      <span class="th-title-text">Status</span>
+                      <span class="sort-arrow" data-sort-for="status">↕</span>
+                    </div>
+                  </th>
+                  <th class="th-progress sortable-th" data-col="progress" title="Clique para ordenar por Progresso">
+                    <div class="th-content">
+                      <span class="th-title-text">Progresso</span>
+                      <span class="sort-arrow" data-sort-for="progress">↕</span>
+                    </div>
+                  </th>
+                  <th class="th-size sortable-th" data-col="size" title="Clique para ordenar por Tamanho">
+                    <div class="th-content">
+                      <span class="th-title-text">Tamanho</span>
+                      <span class="sort-arrow" data-sort-for="size">↕</span>
+                    </div>
+                  </th>
+                  <th class="th-speeds sortable-th" data-col="speeds" title="Clique para ordenar por Velocidade">
+                    <div class="th-content">
+                      <span class="th-title-text">Velocidade</span>
+                      <span class="sort-arrow" data-sort-for="speeds">↕</span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody id="torrentsTableBody">

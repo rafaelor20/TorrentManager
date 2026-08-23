@@ -1049,11 +1049,14 @@ body {
   white-space: nowrap;
 }
 
+.torrent-table th.sortable-th,
 .files-table th.sortable-th {
   cursor: pointer;
+  user-select: none;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+.torrent-table th.sortable-th:hover,
 .files-table th.sortable-th:hover {
   background: rgba(56, 189, 248, 0.1);
   color: #fff;
