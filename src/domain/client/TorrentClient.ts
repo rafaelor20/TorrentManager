@@ -12,6 +12,20 @@ export interface BatchPriorityResult {
   sucesso: boolean;
   marcadosAlterados: number;
   desmarcadosAlterados: number;
+  arquivosApagados?: number;
+  espacoLiberadoBytes?: number;
+  detalhesExclusao?: {
+    apagados: string[];
+    falhas: { arquivo: string; erro: string }[];
+  };
+}
+
+export interface FileDeletionResult {
+  sucesso: boolean;
+  arquivosApagados: number;
+  espacoLiberadoBytes: number;
+  apagados: string[];
+  falhas: { arquivo: string; erro: string }[];
 }
 
 /**
@@ -67,13 +81,23 @@ export interface TorrentClient {
   ): Promise<boolean>;
 
   /**
-   * Aplica prioridades em lote separando marcados (download normal) e desmarcados (não baixar)
+   * Aplica prioridades em lote separando marcados (download normal) e desmarcados (não baixar),
+   * com opção de apagar os arquivos físicos desativados do disco.
    */
   aplicarPrioridadesEmLote?(
     torrentHash: string,
     marcados: number[],
-    desmarcados: number[]
+    desmarcados: number[],
+    apagarDesativados?: boolean
   ): Promise<BatchPriorityResult>;
+
+  /**
+   * Exclui arquivos físicos do disco associados aos índices especificados do torrent
+   */
+  apagarArquivos?(
+    torrentHash: string,
+    fileIndices: number[]
+  ): Promise<FileDeletionResult>;
 
   /**
    * Retorna informações de diagnóstico e versões do cliente (sem acoplamento direto)

@@ -13,4 +13,5 @@ export interface TorrentFile {
   progress: number;
   priority: FilePriority;
   isAvailable?: boolean;
+  originalName?: string;
 }

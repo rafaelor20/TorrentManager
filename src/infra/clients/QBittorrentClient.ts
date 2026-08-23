@@ -1,6 +1,8 @@
+import fs from 'fs';
+import path from 'path';
 import http from 'http';
 import https from 'https';
-import { TorrentClient, ConnectionStatus } from '../../domain/client/TorrentClient.js';
+import { TorrentClient, ConnectionStatus, BatchPriorityResult, FileDeletionResult } from '../../domain/client/TorrentClient.js';
 import { Torrent } from '../../domain/models/Torrent.js';
 import { TorrentFile, FilePriority } from '../../domain/models/TorrentFile.js';
 import { TorrentClientConfig } from '../../domain/models/TorrentClientConfig.js';
@@ -63,9 +65,10 @@ export class QBittorrentClient implements TorrentClient {
   async aplicarPrioridadesEmLote(
     torrentHash: string,
     marcados: number[],
-    desmarcados: number[]
-  ): Promise<{ sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number }> {
-    return this.aplicarPrioridadesConfiguradas(torrentHash, marcados, desmarcados);
+    desmarcados: number[],
+    apagarDesativados: boolean = false
+  ): Promise<BatchPriorityResult> {
+    return this.aplicarPrioridadesConfiguradas(torrentHash, marcados, desmarcados, apagarDesativados);
   }
 
   obterStatusConexao(): ConnectionStatus {
@@ -272,6 +275,8 @@ export class QBittorrentClient implements TorrentClient {
         addedOn: t.added_on ? new Date(t.added_on * 1000) : undefined,
         completedOn: t.completion_on ? new Date(t.completion_on * 1000) : undefined,
         rawState: t.state,
+        savePath: t.save_path,
+        contentPath: t.content_path,
       }));
     } catch (err: any) {
       if (err.message?.includes('403') || err.message?.includes('401')) {
@@ -324,6 +329,7 @@ export class QBittorrentClient implements TorrentClient {
           progress: typeof f.progress === 'number' ? f.progress : 0,
           priority: typeof f.priority === 'number' ? (f.priority as FilePriority) : FilePriority.NORMAL,
           isAvailable: f.is_seed || f.availability > 0,
+          originalName: f.name,
         };
       });
     } catch (err) {
@@ -390,14 +396,172 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
+   * Exclui os arquivos físicos correspondentes aos índices especificados do disco local
+   */
+  async apagarArquivos(
+    torrentHash: string,
+    fileIndices: number[]
+  ): Promise<FileDeletionResult> {
+    if (!torrentHash || fileIndices.length === 0) {
+      return {
+        sucesso: true,
+        arquivosApagados: 0,
+        espacoLiberadoBytes: 0,
+        apagados: [],
+        falhas: [],
+      };
+    }
+
+    const indicesSet = new Set(fileIndices.map(Number));
+    const urlBase = this.obterUrlBase();
+
+    // 1. Obter informações de diretório do torrent (save_path, content_path)
+    let savePath = '';
+    let contentPath = '';
+
+    try {
+      const resTorrent = await this.fazerRequisicao({
+        url: `${urlBase}/api/v2/torrents/info?hashes=${encodeURIComponent(torrentHash)}`,
+        method: 'GET',
+        timeoutMs: 8000,
+      });
+
+      if (resTorrent.statusCode === 200 && resTorrent.bodyText) {
+        const infoList = JSON.parse(resTorrent.bodyText) as any[];
+        if (infoList.length > 0) {
+          savePath = infoList[0].save_path || '';
+          contentPath = infoList[0].content_path || '';
+        }
+      }
+    } catch (err) {
+      console.warn('[QBittorrentClient] Aviso ao buscar diretório de download do torrent:', err);
+    }
+
+    // 2. Obter lista de arquivos do torrent no qBittorrent
+    let filesList: any[] = [];
+    try {
+      const resFiles = await this.fazerRequisicao({
+        url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
+        method: 'GET',
+        timeoutMs: 8000,
+      });
+
+      if (resFiles.statusCode === 200 && resFiles.bodyText) {
+        filesList = JSON.parse(resFiles.bodyText) as any[];
+      }
+    } catch (err) {
+      console.error('[QBittorrentClient] Erro ao obter lista de arquivos para exclusão:', err);
+      throw new Error(`Falha ao obter lista de arquivos do qBittorrent: ${(err as Error).message}`);
+    }
+
+    let arquivosApagados = 0;
+    let espacoLiberadoBytes = 0;
+    const apagados: string[] = [];
+    const falhas: { arquivo: string; erro: string }[] = [];
+
+    // 3. Processar e excluir cada arquivo selecionado
+    for (let idx = 0; idx < filesList.length; idx++) {
+      const f = filesList[idx];
+      const fileIndex = typeof f.index === 'number' ? f.index : idx;
+
+      if (!indicesSet.has(fileIndex)) {
+        continue;
+      }
+
+      const rawFileName = String(f.name || '');
+      const normalizedRelative = rawFileName.replace(/[/\\]+/g, path.sep);
+
+      const candidatos: string[] = [];
+      if (savePath) {
+        candidatos.push(path.resolve(savePath, normalizedRelative));
+      }
+      if (contentPath) {
+        candidatos.push(path.resolve(contentPath, normalizedRelative));
+        const parts = normalizedRelative.split(path.sep);
+        if (parts.length > 1) {
+          const subRel = parts.slice(1).join(path.sep);
+          candidatos.push(path.resolve(contentPath, subRel));
+        }
+      }
+      if (path.isAbsolute(normalizedRelative)) {
+        candidatos.push(normalizedRelative);
+      }
+
+      // Remove duplicatas
+      const caminhosUnicos = Array.from(new Set(candidatos));
+      let arquivoExcluido = false;
+
+      for (const candPath of caminhosUnicos) {
+        const pathsToTry = [candPath, candPath + '.!qB'];
+
+        for (const filePath of pathsToTry) {
+          if (fs.existsSync(filePath)) {
+            try {
+              const stat = await fs.promises.stat(filePath);
+              const fileSize = stat.size || 0;
+
+              await fs.promises.unlink(filePath);
+              arquivoExcluido = true;
+              arquivosApagados++;
+              espacoLiberadoBytes += fileSize;
+              apagados.push(rawFileName);
+
+              // Tenta remover diretórios pai vazios dentro da pasta do torrent
+              let parentDir = path.dirname(filePath);
+              const limitPath1 = savePath ? path.resolve(savePath) : '';
+              const limitPath2 = contentPath ? path.resolve(contentPath) : '';
+
+              while (
+                parentDir &&
+                parentDir !== limitPath1 &&
+                parentDir !== limitPath2 &&
+                ((limitPath1 && parentDir.startsWith(limitPath1)) || (limitPath2 && parentDir.startsWith(limitPath2)))
+              ) {
+                try {
+                  const entries = await fs.promises.readdir(parentDir);
+                  if (entries.length === 0) {
+                    await fs.promises.rmdir(parentDir);
+                    parentDir = path.dirname(parentDir);
+                  } else {
+                    break;
+                  }
+                } catch {
+                  break;
+                }
+              }
+
+              break;
+            } catch (err: any) {
+              falhas.push({ arquivo: rawFileName, erro: err?.message || 'Erro ao excluir arquivo' });
+            }
+          }
+        }
+
+        if (arquivoExcluido) {
+          break;
+        }
+      }
+    }
+
+    return {
+      sucesso: falhas.length === 0,
+      arquivosApagados,
+      espacoLiberadoBytes,
+      apagados,
+      falhas,
+    };
+  }
+
+  /**
    * Aplica em lote as prioridades de arquivos marcados (prioridade 1 - Normal)
-   * e arquivos desmarcados (prioridade 0 - Não baixar)
+   * e arquivos desmarcados (prioridade 0 - Não baixar), com opção de exclusão física dos desmarcados
    */
   async aplicarPrioridadesConfiguradas(
     torrentHash: string,
     marcadosIndices: number[],
-    desmarcadosIndices: number[]
-  ): Promise<{ sucesso: boolean; marcadosAlterados: number; desmarcadosAlterados: number }> {
+    desmarcadosIndices: number[],
+    apagarDesativados: boolean = false
+  ): Promise<BatchPriorityResult> {
     let okMarcados = true;
     let okDesmarcados = true;
 
@@ -409,10 +573,28 @@ export class QBittorrentClient implements TorrentClient {
       okDesmarcados = await this.alterarPrioridades(torrentHash, desmarcadosIndices, FilePriority.DO_NOT_DOWNLOAD);
     }
 
+    let exclusaoResult: FileDeletionResult | undefined;
+
+    if (apagarDesativados && desmarcadosIndices.length > 0) {
+      try {
+        exclusaoResult = await this.apagarArquivos(torrentHash, desmarcadosIndices);
+      } catch (err) {
+        console.error('[QBittorrentClient] Erro durante exclusão de arquivos desativados:', err);
+      }
+    }
+
     return {
-      sucesso: okMarcados && okDesmarcados,
+      sucesso: okMarcados && okDesmarcados && (!exclusaoResult || exclusaoResult.sucesso),
       marcadosAlterados: marcadosIndices.length,
       desmarcadosAlterados: desmarcadosIndices.length,
+      arquivosApagados: exclusaoResult?.arquivosApagados ?? 0,
+      espacoLiberadoBytes: exclusaoResult?.espacoLiberadoBytes ?? 0,
+      detalhesExclusao: exclusaoResult
+        ? {
+            apagados: exclusaoResult.apagados,
+            falhas: exclusaoResult.falhas,
+          }
+        : undefined,
     };
   }
 

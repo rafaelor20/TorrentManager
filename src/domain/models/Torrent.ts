@@ -21,4 +21,6 @@ export interface Torrent {
   addedOn?: Date;
   completedOn?: Date;
   rawState?: string;
+  savePath?: string;
+  contentPath?: string;
 }
