@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
 import { TorrentClient } from '../domain/client/TorrentClient.js';
 import { TorrentClientRegistry } from '../infra/providers/TorrentClientRegistry.js';
 import { TorrentClientConfig } from '../domain/models/TorrentClientConfig.js';
@@ -6,6 +6,9 @@ import { ConfigService } from '../infra/config/ConfigService.js';
 
 export function createRouter(torrentClient: TorrentClient): Router {
   const router = Router();
+
+  router.use(express.json({ limit: '100mb' }));
+  router.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
   // Obter status geral da aplicação e do cliente
   router.get('/status', (_req: Request, res: Response) => {

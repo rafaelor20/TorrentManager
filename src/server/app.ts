@@ -32,9 +32,9 @@ export function createApp(torrentClient: TorrentClient): Express {
     publicPath = path.resolve(process.cwd(), 'public');
   }
 
-  // Middlewares
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // Middlewares com limite expandido para suportar torrents com 100.000+ arquivos
+  app.use(express.json({ limit: '100mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '100mb' }));
   app.use(express.static(publicPath));
 
   // Rotas da API

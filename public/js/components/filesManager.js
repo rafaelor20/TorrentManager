@@ -1172,6 +1172,73 @@ export function perguntarExclusaoArquivosFisicos(qtdDesativados) {
   });
 }
 
+async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados) {
+  const CHUNK_SIZE = 1500;
+
+  // Se ambos os arrays forem pequenos, envia direto em 1 única requisição rápida
+  if (marcados.length <= CHUNK_SIZE && desmarcados.length <= CHUNK_SIZE) {
+    return apiService.applyPriority(hash, {
+      marcadosIndices: marcados,
+      desmarcadosIndices: desmarcados,
+      apagarDesativados,
+    });
+  }
+
+  let totalMarcadosAlterados = 0;
+  let totalDesmarcadosAlterados = 0;
+  let totalArquivosApagados = 0;
+  let totalEspacoLiberadoBytes = 0;
+  let todosOk = true;
+
+  // 1. Enviar marcados em blocos de 1500
+  for (let i = 0; i < marcados.length; i += CHUNK_SIZE) {
+    const chunk = marcados.slice(i, i + CHUNK_SIZE);
+    const { ok, data } = await apiService.applyPriority(hash, {
+      marcadosIndices: chunk,
+      desmarcadosIndices: [],
+      apagarDesativados: false,
+    });
+    if (ok && data.sucesso) {
+      totalMarcadosAlterados += (data.marcadosAlterados || chunk.length);
+    } else {
+      todosOk = false;
+    }
+  }
+
+  // 2. Enviar desmarcados em blocos de 1500 (exclusão no último bloco se solicitado)
+  for (let i = 0; i < desmarcados.length; i += CHUNK_SIZE) {
+    const chunk = desmarcados.slice(i, i + CHUNK_SIZE);
+    const isLastChunk = (i + CHUNK_SIZE) >= desmarcados.length;
+    const { ok, data } = await apiService.applyPriority(hash, {
+      marcadosIndices: [],
+      desmarcadosIndices: chunk,
+      apagarDesativados: isLastChunk ? apagarDesativados : false,
+    });
+    if (ok && data.sucesso) {
+      totalDesmarcadosAlterados += (data.desmarcadosAlterados || chunk.length);
+      if (data.detalhes?.arquivosApagados) {
+        totalArquivosApagados += (data.detalhes.arquivosApagados || 0);
+        totalEspacoLiberadoBytes += (data.detalhes.espacoLiberadoBytes || 0);
+      }
+    } else {
+      todosOk = false;
+    }
+  }
+
+  return {
+    ok: todosOk,
+    data: {
+      sucesso: todosOk,
+      marcadosAlterados: totalMarcadosAlterados,
+      desmarcadosAlterados: totalDesmarcadosAlterados,
+      detalhes: {
+        arquivosApagados: totalArquivosApagados,
+        espacoLiberadoBytes: totalEspacoLiberadoBytes,
+      },
+    },
+  };
+}
+
 export async function salvarPrioridades() {
   if (!state.torrentSelecionadoAtual || state.todosArquivosDoTorrent.length === 0) {
     mostrarToast('Aviso', 'Nenhum torrent ou arquivo selecionado para aplicar prioridades.', 'info');
@@ -1243,11 +1310,7 @@ export async function salvarPrioridades() {
 
       await Promise.all(
         Array.from(porTorrent.entries()).map(async ([hash, { marcados, desmarcados }]) => {
-          const { ok, data } = await apiService.applyPriority(hash, {
-            marcadosIndices: marcados,
-            desmarcadosIndices: desmarcados,
-            apagarDesativados,
-          });
+          const { ok, data } = await enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados);
           if (ok && data.sucesso) {
             if (data.detalhes?.arquivosApagados) {
               totalApagados += (data.detalhes.arquivosApagados || 0);
@@ -1275,11 +1338,7 @@ export async function salvarPrioridades() {
     }
 
     const hash = state.torrentSelecionadoAtual.hash;
-    const { ok, data } = await apiService.applyPriority(hash, {
-      marcadosIndices,
-      desmarcadosIndices,
-      apagarDesativados,
-    });
+    const { ok, data } = await enviarPrioridadesEmLotes(hash, marcadosIndices, desmarcadosIndices, apagarDesativados);
 
     if (ok && data.sucesso) {
       if (apagarDesativados && data.detalhes?.arquivosApagados !== undefined) {
@@ -1370,6 +1429,42 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
     mostrarToast('Erro ao Abrir', `Falha ao abrir pasta: ${err.message}`, 'error');
   }
 }
+
+// ==========================================
+// 9. INICIALIZAÇÃO DE LISTENERS
+// ==========================================
+
+export function initFilesManager() {
+  const filesTableBody = document.getElementById('filesTableBody');
+  const filesScrollArea = document.getElementById('filesScrollArea');
+  const btnSelectAll = document.getElementById('btnSelectAll');
+  const btnDeselectAll = document.getElementById('btnDeselectAll');
+  const btnInvertSelection = document.getElementById('btnInvertSelection');
+  const inputSearchFiles = document.getElementById('inputSearchFiles');
+  const filterOnlySelected = document.getElementById('filterOnlySelected');
+  const btnClearSearch = document.getElementById('btnClearSearch');
+  const btnFecharArquivos = document.getElementById('btnFecharArquivos');
+  const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
+  const torrentFilesSection = document.getElementById('torrentFilesSection');
+  const headerRow = document.getElementById('filesTableHeaderRow');
+
+  // Inicializa Resizers, Drag & Drop e Menu de Contexto
+  initColumnResizers();
+  initColumnReordering();
+  initFilesContextMenu();
+
+  // Listener de clique nos cabeçalhos para ordenação
+  headerRow?.addEventListener('click', (e) => {
+    if (e.target.closest('.col-resizer')) return;
+
+    const th = e.target.closest('th.sortable-th');
+    if (!th) return;
+
+    const colId = th.dataset.col;
+    if (colId) {
+      alterarOrdenacao(colId);
+    }
+  });
 
   // Event Delegation no corpo da tabela
   filesTableBody?.addEventListener('click', (e) => {

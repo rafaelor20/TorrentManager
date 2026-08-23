@@ -363,6 +363,17 @@ export class QBittorrentClient implements TorrentClient {
       }
     }
 
+    // Se a lista de índices for grande, processa em lotes de 1000 para evitar sobrecarga no qBittorrent WebAPI
+    const CHUNK_SIZE = 1000;
+    if (fileIndices.length > CHUNK_SIZE) {
+      for (let i = 0; i < fileIndices.length; i += CHUNK_SIZE) {
+        const chunk = fileIndices.slice(i, i + CHUNK_SIZE);
+        const ok = await this.alterarPrioridades(torrentHash, chunk, prioridade);
+        if (!ok) return false;
+      }
+      return true;
+    }
+
     try {
       const urlBase = this.obterUrlBase();
       const params = new URLSearchParams();
