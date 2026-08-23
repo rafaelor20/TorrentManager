@@ -50,3 +50,28 @@ export function formatarPrioridade(prio) {
       return { label: `Prioridade ${prio}`, classe: 'prio-normal' };
   }
 }
+
+export function normalizarTextoBusca(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+export function extrairTokensBusca(termo) {
+  if (!termo) return [];
+  const normalized = normalizarTextoBusca(termo).trim();
+  if (!normalized) return [];
+
+  const tokens = [];
+  const regex = /"([^"]+)"|'([^']+)'|(\S+)/g;
+  let match;
+  while ((match = regex.exec(normalized)) !== null) {
+    const token = match[1] || match[2] || match[3];
+    if (token && token.trim()) {
+      tokens.push(token.trim());
+    }
+  }
+  return tokens;
+}

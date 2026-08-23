@@ -1,19 +1,102 @@
 /**
  * Componente da Tabela de Torrents e Estatísticas Rápidas
  * Recursos:
+ * - Filtragem Instantânea por Status ao clicar nos cards de estatísticas acima
+ * - Pesquisa Instantânea de Torrents por Nome e Hash
  * - Ordenação Inteligente por Coluna (Nome, Status, Progresso, Tamanho, Velocidade)
- * - Indicadores visuais de ordenação (▲ / ▼ / ↕)
+ * - Indicadores visuais de ordenação (▲ / ▼ / ↕) e de filtro ativo
  * - Sincronização em tempo real e atualização de estatísticas
  */
 
 import { state } from '../state.js';
 import { apiService } from '../services/apiService.js';
-import { formatarTamanho, formatarVelocidade, mapearStatusLegivel } from '../utils/formatters.js';
+import { formatarTamanho, formatarVelocidade, mapearStatusLegivel, normalizarTextoBusca, extrairTokensBusca } from '../utils/formatters.js';
 import { mostrarToast } from './toast.js';
 import { selecionarTorrent } from './filesManager.js';
 
 // ==========================================
-// 1. ORDENAÇÃO DE TORRENTS (SORTING)
+// 1. FILTRAGEM DE TORRENTS (STATUS & BUSCA)
+// ==========================================
+
+export function obterTorrentsVisiveis() {
+  const lista = state.todosTorrents || [];
+  if (lista.length === 0) return [];
+
+  const filtroStatus = state.filtroTorrentsStatus || 'all';
+  const termo = (state.termoBuscaTorrents || '').trim();
+  const tokensBusca = extrairTokensBusca(termo);
+
+  const filtrados = lista.filter((t) => {
+    // 1. Filtro por status
+    if (filtroStatus === 'completed') {
+      const isCompleted = t.status === 'uploading' || t.status === 'completed' || (typeof t.progress === 'number' && t.progress >= 1);
+      if (!isCompleted) return false;
+    } else if (filtroStatus === 'downloading') {
+      if (t.status !== 'downloading') return false;
+    } else if (filtroStatus === 'paused') {
+      if (t.status !== 'paused') return false;
+    }
+
+    // 2. Filtro por busca de nome e hash
+    if (tokensBusca.length > 0) {
+      const searchStr = normalizarTextoBusca(`${t.name || ''} ${t.hash || ''}`);
+      for (let i = 0; i < tokensBusca.length; i++) {
+        if (!searchStr.includes(tokensBusca[i])) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  });
+
+  return ordenarTorrents(filtrados);
+}
+
+export function atualizarIndicadoresFiltroStatusTorrentsUI() {
+  const current = state.filtroTorrentsStatus || 'all';
+  document.querySelectorAll('#torrentStatusStatsGrid .stat-box').forEach((box) => {
+    const filter = box.dataset.filter;
+    box.classList.toggle('is-active', filter === current);
+  });
+}
+
+export function definirFiltroStatusTorrents(novoFiltro) {
+  // Se clicar no mesmo filtro já ativo (exceto 'all'), desmarca e volta para 'all'
+  if (state.filtroTorrentsStatus === novoFiltro && novoFiltro !== 'all') {
+    state.filtroTorrentsStatus = 'all';
+  } else {
+    state.filtroTorrentsStatus = novoFiltro || 'all';
+  }
+
+  atualizarIndicadoresFiltroStatusTorrentsUI();
+  renderizarTabelaTorrents();
+
+  const labels = {
+    all: 'Todos os Torrents',
+    completed: 'Concluídos / Upload',
+    downloading: 'Em Download',
+    paused: 'Pausados',
+  };
+  mostrarToast('Filtro de Status', `Filtro ativo: ${labels[state.filtroTorrentsStatus] || state.filtroTorrentsStatus}`, 'info');
+}
+
+export function filtrarTorrentsInstantaneamente() {
+  const inputSearch = document.getElementById('inputSearchTorrents');
+  const btnClear = document.getElementById('btnClearTorrentSearch');
+
+  const termo = (inputSearch?.value || '').trim();
+  state.termoBuscaTorrents = termo;
+
+  if (btnClear) {
+    btnClear.style.display = termo.length > 0 ? 'flex' : 'none';
+  }
+
+  renderizarTabelaTorrents();
+}
+
+// ==========================================
+// 2. ORDENAÇÃO DE TORRENTS (SORTING)
 // ==========================================
 
 export function alterarOrdenacaoTorrents(colunaId) {
@@ -105,16 +188,44 @@ export function ordenarTorrents(lista) {
 }
 
 // ==========================================
-// 2. RENDERIZAÇÃO DA TABELA DE TORRENTS
+// 3. RENDERIZAÇÃO DA TABELA DE TORRENTS
 // ==========================================
 
 export function renderizarTabelaTorrents() {
   const torrentsTableBody = document.getElementById('torrentsTableBody');
+  const tableCountText = document.getElementById('tableCountText');
+  const torrentSearchResultCount = document.getElementById('torrentSearchResultCount');
+  const activeClientName = document.getElementById('activeClientName');
+
   if (!torrentsTableBody) return;
 
-  const torrents = state.todosTorrents || [];
+  const totalOriginal = (state.todosTorrents || []).length;
+  const torrentsVisiveis = obterTorrentsVisiveis();
+  const totalFiltrado = torrentsVisiveis.length;
+  const clientNome = activeClientName ? activeClientName.textContent : 'qBittorrent';
 
-  if (torrents.length === 0) {
+  // Atualiza contadores e badges de status
+  if (torrentSearchResultCount) {
+    if (state.termoBuscaTorrents || state.filtroTorrentsStatus !== 'all') {
+      torrentSearchResultCount.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents`;
+    } else {
+      torrentSearchResultCount.textContent = totalOriginal === 1
+        ? '1 torrent carregado'
+        : `Exibindo todos os ${totalOriginal} torrents`;
+    }
+  }
+
+  if (tableCountText) {
+    if (state.termoBuscaTorrents || state.filtroTorrentsStatus !== 'all') {
+      tableCountText.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents filtrados`;
+    } else {
+      tableCountText.textContent = totalOriginal === 1
+        ? '1 torrent carregado'
+        : `${totalOriginal} torrents carregados do ${clientNome}`;
+    }
+  }
+
+  if (totalOriginal === 0) {
     torrentsTableBody.innerHTML = `
       <tr class="empty-state-row">
         <td colspan="6">
@@ -129,9 +240,22 @@ export function renderizarTabelaTorrents() {
     return;
   }
 
-  const torrentsOrdenados = ordenarTorrents(torrents);
+  if (totalFiltrado === 0) {
+    torrentsTableBody.innerHTML = `
+      <tr class="empty-state-row">
+        <td colspan="6">
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <h4>Nenhum torrent corresponde aos filtros</h4>
+            <p>Tente alterar o status selecionado acima ou ajustar o termo de pesquisa.</p>
+          </div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
-  torrentsTableBody.innerHTML = torrentsOrdenados.map((t) => {
+  torrentsTableBody.innerHTML = torrentsVisiveis.map((t) => {
     const statusInfo = mapearStatusLegivel(t.status, t.rawState);
     const percentualNum = typeof t.progress === 'number'
       ? (t.progress > 1 ? t.progress : t.progress * 100)
@@ -186,14 +310,14 @@ export function renderizarTabelaTorrents() {
   }).join('');
 
   // Adiciona listener de clique em cada linha / botão de seleção
-  torrentsOrdenados.forEach((t) => {
+  torrentsVisiveis.forEach((t) => {
     const row = torrentsTableBody.querySelector(`.torrent-row[data-hash="${t.hash}"]`);
     row?.addEventListener('click', () => selecionarTorrent(t));
   });
 }
 
 // ==========================================
-// 3. CARREGAMENTO E SINCRONIZAÇÃO DA API
+// 4. CARREGAMENTO E SINCRONIZAÇÃO DA API
 // ==========================================
 
 export async function carregarTorrents(isManual = false) {
@@ -206,9 +330,7 @@ export async function carregarTorrents(isManual = false) {
   const statDownloadingTorrents = document.getElementById('statDownloadingTorrents');
   const statPausedTorrents = document.getElementById('statPausedTorrents');
   const statTotalSize = document.getElementById('statTotalSize');
-  const tableCountText = document.getElementById('tableCountText');
   const torrentsTableBody = document.getElementById('torrentsTableBody');
-  const activeClientName = document.getElementById('activeClientName');
 
   if (isManual && btnRecarregarTorrents && btnRecarregarText && refreshIcon) {
     btnRecarregarTorrents.disabled = true;
@@ -251,14 +373,8 @@ export async function carregarTorrents(isManual = false) {
       if (statPausedTorrents) statPausedTorrents.textContent = countPaused;
       if (statTotalSize) statTotalSize.textContent = formatarTamanho(bytesTotal);
 
-      const clientNome = activeClientName ? activeClientName.textContent : 'qBittorrent';
-      if (tableCountText) {
-        tableCountText.textContent = torrents.length === 1
-          ? '1 torrent carregado'
-          : `${torrents.length} torrents carregados do ${clientNome}`;
-      }
-
       atualizarIndicadoresOrdenacaoTorrentsUI();
+      atualizarIndicadoresFiltroStatusTorrentsUI();
       renderizarTabelaTorrents();
 
       if (isManual) {
@@ -266,6 +382,7 @@ export async function carregarTorrents(isManual = false) {
       }
     } else {
       state.todosTorrents = [];
+      const tableCountText = document.getElementById('tableCountText');
       if (tableCountText) tableCountText.textContent = 'Erro ao listar torrents';
       if (torrentsTableBody) {
         torrentsTableBody.innerHTML = `
@@ -286,6 +403,7 @@ export async function carregarTorrents(isManual = false) {
     }
   } catch (err) {
     state.todosTorrents = [];
+    const tableCountText = document.getElementById('tableCountText');
     if (tableCountText) tableCountText.textContent = 'Erro de comunicação';
     if (torrentsTableBody) {
       torrentsTableBody.innerHTML = `
@@ -315,12 +433,15 @@ export async function carregarTorrents(isManual = false) {
 }
 
 // ==========================================
-// 4. INICIALIZAÇÃO DE LISTENERS
+// 5. INICIALIZAÇÃO DE LISTENERS
 // ==========================================
 
 export function initTorrentsTable() {
   const btnRecarregarTorrents = document.getElementById('btnRecarregarTorrents');
   const headerRow = document.getElementById('torrentTableHeaderRow');
+  const statsGrid = document.getElementById('torrentStatusStatsGrid');
+  const inputSearch = document.getElementById('inputSearchTorrents');
+  const btnClearSearch = document.getElementById('btnClearTorrentSearch');
 
   btnRecarregarTorrents?.addEventListener('click', () => {
     carregarTorrents(true);
@@ -337,5 +458,46 @@ export function initTorrentsTable() {
     }
   });
 
+  // Listener de clique nos cards de estatísticas (filtro rápido por status)
+  statsGrid?.addEventListener('click', (e) => {
+    const statBox = e.target.closest('.stat-box');
+    if (!statBox) return;
+
+    const filter = statBox.dataset.filter;
+    if (filter) {
+      definirFiltroStatusTorrents(filter);
+    }
+  });
+
+  // Acessibilidade via teclado para os cards de estatísticas
+  statsGrid?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const statBox = e.target.closest('.stat-box');
+      if (statBox) {
+        e.preventDefault();
+        const filter = statBox.dataset.filter;
+        if (filter) {
+          definirFiltroStatusTorrents(filter);
+        }
+      }
+    }
+  });
+
+  // Pesquisa instantânea por nome ou hash
+  inputSearch?.addEventListener('input', filtrarTorrentsInstantaneamente);
+  inputSearch?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      inputSearch.value = '';
+      filtrarTorrentsInstantaneamente();
+    }
+  });
+
+  btnClearSearch?.addEventListener('click', () => {
+    if (inputSearch) inputSearch.value = '';
+    filtrarTorrentsInstantaneamente();
+    inputSearch?.focus();
+  });
+
   atualizarIndicadoresOrdenacaoTorrentsUI();
+  atualizarIndicadoresFiltroStatusTorrentsUI();
 }

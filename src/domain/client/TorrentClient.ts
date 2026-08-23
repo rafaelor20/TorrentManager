@@ -100,6 +100,14 @@ export interface TorrentClient {
   ): Promise<FileDeletionResult>;
 
   /**
+   * Abre a pasta do arquivo no gerenciador de arquivos do sistema operacional nativo
+   */
+  abrirPastaArquivo?(
+    torrentHash: string,
+    fileIndex: number
+  ): Promise<{ sucesso: boolean; mensagem?: string; caminho?: string; naoBaixado?: boolean }>;
+
+  /**
    * Retorna informações de diagnóstico e versões do cliente (sem acoplamento direto)
    */
   obterInfo?(): Record<string, any> | null;

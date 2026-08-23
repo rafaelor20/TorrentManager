@@ -19,8 +19,11 @@ export const state = {
   // Filtro de status dos arquivos ('all' | 'active' | 'inactive')
   filtroStatusArquivo: 'all',
 
-  // Lista de torrents carregados e ordenação
+  // Lista de torrents carregados, filtros e ordenação
   todosTorrents: [],
+  torrentsFiltrados: [],
+  filtroTorrentsStatus: 'all', // 'all' | 'completed' | 'downloading' | 'paused'
+  termoBuscaTorrents: '',
   torrentSortColumn: 'name', // 'name' | 'status' | 'progress' | 'size' | 'speeds'
   torrentSortDirection: 'asc', // 'asc' | 'desc'
 

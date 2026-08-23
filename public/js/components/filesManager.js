@@ -352,9 +352,21 @@ function gerarCelula(colunaId, f, fileIndex, isSelected) {
       return `<td class="cell-file-index">${fileIndex}</td>`;
     case 'name': {
       const nomeArquivo = f._fileName || extrairApenasNomeArquivo(f.name, f.path);
+      const isDownloaded = typeof f.progress === 'number' && f.progress >= 0.9999;
       return `
-        <td class="cell-file-name">
-          <span class="file-name-text" title="${nomeArquivo}">${nomeArquivo}</span>
+        <td class="cell-file-name" data-index="${fileIndex}">
+          <div class="file-name-cell-wrapper">
+            <span class="file-name-text ${isDownloaded ? 'is-downloaded' : 'not-downloaded'}" data-action="open-folder" data-index="${fileIndex}" title="${isDownloaded ? 'Arquivo 100% baixado • Clique para abrir a pasta no Explorador de Arquivos' : `Arquivo em ${((f.progress || 0) * 100).toFixed(1)}%`}">
+              ${nomeArquivo}
+            </span>
+            ${isDownloaded ? `
+              <button type="button" class="btn-file-open-folder" data-action="open-folder" data-index="${fileIndex}" title="Abrir pasta no Explorador de Arquivos">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
+            ` : ''}
+          </div>
         </td>
       `;
     }
@@ -1220,18 +1232,80 @@ export function initFilesManager() {
     }
   });
 
+// Função para solicitar a abertura da pasta do arquivo no sistema operacional
+export async function acaoAbrirPastaArquivo(fileIndex) {
+  if (!state.torrentSelecionadoAtual) return;
+
+  const f = state.todosArquivosDoTorrent.find(
+    (item) => (item._fileIndex !== undefined ? item._fileIndex : item.index) === fileIndex
+  );
+
+  const nomeArquivo = f ? (f._fileName || f.name || 'arquivo') : `arquivo #${fileIndex}`;
+  const isDownloaded = f && typeof f.progress === 'number' && f.progress >= 0.9999;
+
+  if (f && !isDownloaded) {
+    const progStr = ((f.progress || 0) * 100).toFixed(1) + '%';
+    mostrarToast(
+      'Arquivo Não Baixado',
+      `O arquivo "${nomeArquivo}" está em ${progStr} e ainda não foi totalmente baixado.`,
+      'info'
+    );
+    return;
+  }
+
+  mostrarToast('Abrindo Pasta...', `Abrindo localização de "${nomeArquivo}" no Explorador...`, 'info');
+
+  try {
+    const hash = state.torrentSelecionadoAtual.hash;
+    const { ok, data } = await apiService.openFileFolder(hash, fileIndex);
+
+    if (ok && data.sucesso) {
+      mostrarToast(
+        'Pasta Aberta',
+        `A pasta de "${nomeArquivo}" foi aberta com sucesso no Explorador de Arquivos!`,
+        'success'
+      );
+    } else {
+      const msg = data?.mensagem || data?.erro || 'Não foi possível abrir a pasta do arquivo.';
+      mostrarToast(data?.naoBaixado ? 'Arquivo Não Baixado' : 'Aviso', msg, data?.naoBaixado ? 'info' : 'error');
+    }
+  } catch (err) {
+    mostrarToast('Erro ao Abrir', `Falha ao abrir pasta: ${err.message}`, 'error');
+  }
+}
+
   // Event Delegation no corpo da tabela
   filesTableBody?.addEventListener('click', (e) => {
+    // 1. Se clicou no checkbox ou no label do checkbox, deixa o comportamento do checkbox agir
+    if (e.target.classList.contains('file-check-input') || e.target.closest('label.file-check-label')) {
+      return;
+    }
+
     const tr = e.target.closest('.torrent-file-row');
     if (!tr) return;
     const index = Number(tr.dataset.index);
     if (isNaN(index)) return;
 
-    if (e.target.classList.contains('file-check-input') || e.target.closest('label.file-check-label')) {
+    // 2. Se clicou no nome do arquivo ou no botão de abrir pasta:
+    const targetFolderAction = e.target.closest('[data-action="open-folder"]') || e.target.closest('.file-name-text') || e.target.closest('.btn-file-open-folder');
+    if (targetFolderAction) {
+      e.stopPropagation();
+      acaoAbrirPastaArquivo(index);
       return;
     }
 
+    // 3. Caso contrário (clique no restante da linha: índice, caminho, tamanho, prioridade, progresso), alterna seleção
     alternarSelecaoArquivo(index);
+  });
+
+  // Double-click na linha também abre a pasta se o arquivo estiver baixado
+  filesTableBody?.addEventListener('dblclick', (e) => {
+    const tr = e.target.closest('.torrent-file-row');
+    if (!tr) return;
+    const index = Number(tr.dataset.index);
+    if (isNaN(index)) return;
+
+    acaoAbrirPastaArquivo(index);
   });
 
   filesTableBody?.addEventListener('change', (e) => {

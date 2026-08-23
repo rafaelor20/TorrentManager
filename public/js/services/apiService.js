@@ -60,4 +60,12 @@ export const apiService = {
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
   },
+
+  async openFileFolder(hash, fileIndex) {
+    const res = await fetch(`/api/torrents/${encodeURIComponent(hash)}/files/${fileIndex}/open-folder`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
 };

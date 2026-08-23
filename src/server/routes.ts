@@ -290,6 +290,39 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
+  // Abrir pasta do arquivo no gerenciador de arquivos do sistema operacional nativo
+  router.post('/torrents/:hash/files/:index/open-folder', async (req: Request, res: Response) => {
+    try {
+      const hashParam = req.params.hash;
+      const hash = Array.isArray(hashParam) ? hashParam[0] : hashParam;
+      const indexParam = req.params.index;
+      const fileIndex = Number(Array.isArray(indexParam) ? indexParam[0] : indexParam);
+
+      if (!hash || isNaN(fileIndex)) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: 'Hash e índice do arquivo são obrigatórios.',
+        });
+      }
+
+      if (torrentClient.abrirPastaArquivo) {
+        const resultado = await torrentClient.abrirPastaArquivo(hash, fileIndex);
+        return res.json(resultado);
+      }
+
+      return res.status(501).json({
+        sucesso: false,
+        erro: 'Operação não suportada pelo cliente atual.',
+      });
+    } catch (err: any) {
+      console.error('[Routes] Erro ao abrir pasta do arquivo:', err);
+      return res.status(500).json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao abrir pasta do arquivo no sistema operacional.',
+      });
+    }
+  });
+
   return router;
 }
 

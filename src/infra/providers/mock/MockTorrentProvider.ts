@@ -99,6 +99,28 @@ export class MockTorrentClient implements TorrentClient {
     };
   }
 
+  async abrirPastaArquivo(
+    torrentHash: string,
+    fileIndex: number
+  ): Promise<{ sucesso: boolean; mensagem?: string; caminho?: string; naoBaixado?: boolean }> {
+    const file = this.mockArquivos.find((f) => f.index === fileIndex);
+    if (!file) {
+      return { sucesso: false, mensagem: `Arquivo de índice #${fileIndex} não encontrado.` };
+    }
+    if (file.progress < 1) {
+      return {
+        sucesso: false,
+        naoBaixado: true,
+        mensagem: `O arquivo "${file.name}" está em ${(file.progress * 100).toFixed(1)}% e ainda não foi totalmente baixado.`,
+      };
+    }
+    return {
+      sucesso: true,
+      mensagem: `Pasta do arquivo "${file.name}" aberta com sucesso no Explorador (Mock).`,
+      caminho: `/downloads/mock-torrent/${file.name}`,
+    };
+  }
+
   obterStatusConexao(): ConnectionStatus {
     return {
       conectado: this.conectado,

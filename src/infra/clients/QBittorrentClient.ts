@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import https from 'https';
+import { exec, spawn } from 'child_process';
 import { TorrentClient, ConnectionStatus, BatchPriorityResult, FileDeletionResult } from '../../domain/client/TorrentClient.js';
 import { Torrent } from '../../domain/models/Torrent.js';
 import { TorrentFile, FilePriority } from '../../domain/models/TorrentFile.js';
@@ -704,4 +705,162 @@ export class QBittorrentClient implements TorrentClient {
         return 'unknown';
     }
   }
+
+  /**
+   * Abre a pasta do arquivo baixado no gerenciador de arquivos do sistema operacional nativo
+   */
+  async abrirPastaArquivo(
+    torrentHash: string,
+    fileIndex: number
+  ): Promise<{ sucesso: boolean; mensagem?: string; caminho?: string; naoBaixado?: boolean }> {
+    if (!torrentHash) {
+      return { sucesso: false, mensagem: 'Hash do torrent não informado.' };
+    }
+
+    const urlBase = this.obterUrlBase();
+
+    // 1. Obter informações de diretório do torrent (save_path, content_path)
+    let savePath = '';
+    let contentPath = '';
+
+    try {
+      const resTorrent = await this.fazerRequisicao({
+        url: `${urlBase}/api/v2/torrents/info?hashes=${encodeURIComponent(torrentHash)}`,
+        method: 'GET',
+        timeoutMs: 8000,
+      });
+
+      if (resTorrent.statusCode === 200 && resTorrent.bodyText) {
+        const infoList = JSON.parse(resTorrent.bodyText) as any[];
+        if (infoList.length > 0) {
+          savePath = infoList[0].save_path || '';
+          contentPath = infoList[0].content_path || '';
+        }
+      }
+    } catch (err) {
+      console.warn('[QBittorrentClient] Aviso ao buscar diretório do torrent:', err);
+    }
+
+    // 2. Obter informações do arquivo específico
+    let targetFile: any = null;
+    try {
+      const resFiles = await this.fazerRequisicao({
+        url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
+        method: 'GET',
+        timeoutMs: 8000,
+      });
+
+      if (resFiles.statusCode === 200 && resFiles.bodyText) {
+        const filesList = JSON.parse(resFiles.bodyText) as any[];
+        targetFile = filesList.find((f, idx) => (typeof f.index === 'number' ? f.index : idx) === fileIndex);
+      }
+    } catch (err: any) {
+      return { sucesso: false, mensagem: `Falha ao obter lista de arquivos: ${err.message}` };
+    }
+
+    if (!targetFile) {
+      return { sucesso: false, mensagem: `Arquivo de índice #${fileIndex} não encontrado no torrent.` };
+    }
+
+    const isComplete = typeof targetFile.progress === 'number' && targetFile.progress >= 0.9999;
+    const rawFileName = String(targetFile.name || '');
+    const normalizedRelative = rawFileName.replace(/[/\\]+/g, path.sep);
+
+    const candidatos: string[] = [];
+    if (savePath) {
+      candidatos.push(path.resolve(savePath, normalizedRelative));
+    }
+    if (contentPath) {
+      candidatos.push(path.resolve(contentPath, normalizedRelative));
+      const parts = normalizedRelative.split(path.sep);
+      if (parts.length > 1) {
+        const subRel = parts.slice(1).join(path.sep);
+        candidatos.push(path.resolve(contentPath, subRel));
+      }
+    }
+    if (path.isAbsolute(normalizedRelative)) {
+      candidatos.push(normalizedRelative);
+    }
+
+    let existingFilePath: string | null = null;
+    let existingDirectoryPath: string | null = null;
+
+    for (const candPath of candidatos) {
+      if (fs.existsSync(candPath)) {
+        existingFilePath = candPath;
+        existingDirectoryPath = path.dirname(candPath);
+        break;
+      }
+      const dirOfCand = path.dirname(candPath);
+      if (fs.existsSync(dirOfCand) && !existingDirectoryPath) {
+        existingDirectoryPath = dirOfCand;
+      }
+    }
+
+    if (!existingFilePath && !isComplete) {
+      const progStr = typeof targetFile.progress === 'number' ? (targetFile.progress * 100).toFixed(1) + '%' : '0%';
+      return {
+        sucesso: false,
+        naoBaixado: true,
+        mensagem: `O arquivo "${targetFile.name}" está em ${progStr} e ainda não foi totalmente baixado.`,
+      };
+    }
+
+    const pathToOpen = existingFilePath || existingDirectoryPath || (savePath ? path.resolve(savePath) : null);
+
+    if (!pathToOpen || !fs.existsSync(pathToOpen)) {
+      return {
+        sucesso: false,
+        naoBaixado: !isComplete,
+        mensagem: 'O diretório ou arquivo físico não foi encontrado no sistema de arquivos local.',
+      };
+    }
+
+    // Executa comando no sistema operacional para abrir o explorador
+    try {
+      await abrirNoExploradorDeArquivos(pathToOpen, Boolean(existingFilePath));
+      return {
+        sucesso: true,
+        caminho: pathToOpen,
+        mensagem: `Pasta aberta com sucesso no Explorador: ${pathToOpen}`,
+      };
+    } catch (err: any) {
+      return {
+        sucesso: false,
+        mensagem: `Erro ao abrir explorador de arquivos: ${err.message}`,
+        caminho: pathToOpen,
+      };
+    }
+  }
+}
+
+/**
+ * Função utilitária agnóstica de sistema operacional para abrir pasta/selecionar arquivo
+ */
+export function abrirNoExploradorDeArquivos(targetPath: string, isFile: boolean): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const platform = process.platform;
+    const resolvedPath = path.resolve(targetPath);
+
+    if (platform === 'win32') {
+      if (isFile) {
+        exec(`explorer.exe /select,"${resolvedPath}"`, () => resolve());
+      } else {
+        exec(`explorer.exe "${resolvedPath}"`, () => resolve());
+      }
+    } else if (platform === 'darwin') {
+      const args = isFile ? ['-R', resolvedPath] : [resolvedPath];
+      const child = spawn('open', args, { detached: true, stdio: 'ignore' });
+      child.unref();
+      child.on('error', (err) => reject(err));
+      resolve();
+    } else {
+      // Linux / BSD
+      const folderToOpen = isFile ? path.dirname(resolvedPath) : resolvedPath;
+      const child = spawn('xdg-open', [folderToOpen], { detached: true, stdio: 'ignore' });
+      child.unref();
+      child.on('error', (err) => reject(err));
+      resolve();
+    }
+  });
 }
