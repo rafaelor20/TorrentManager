@@ -40,6 +40,17 @@ export function createApp(torrentClient: TorrentClient): Express {
   // Rotas da API
   app.use('/api', createRouter(torrentClient));
 
+  // Rota explícita para favicon.ico (evita que o fallback SPA sirva HTML para requisições de ícone no Windows)
+  app.get('/favicon.ico', (_req, res) => {
+    const icoPath = path.join(publicPath, 'favicon.ico');
+    if (fs.existsSync(icoPath)) {
+      res.setHeader('Content-Type', 'image/x-icon');
+      res.sendFile(icoPath);
+    } else {
+      res.status(204).end();
+    }
+  });
+
   // Fallback SPA / Interface Web
   app.get('*', (_req, res) => {
     const indexPath = path.join(publicPath, 'index.html');
