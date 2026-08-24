@@ -694,22 +694,28 @@ export class QBittorrentClient implements TorrentClient {
       case 'downloading':
       case 'forcedDL':
       case 'stalledDL':
+      case 'metaDL':
+      case 'forcedMetaDL':
         return 'downloading';
       case 'uploading':
       case 'forcedUP':
       case 'stalledUP':
         return 'uploading';
       case 'pausedDL':
-      case 'pausedUP':
       case 'stoppedDL':
-      case 'stoppedUP':
         return 'paused';
+      case 'pausedUP':
+      case 'stoppedUP':
+        return 'completed';
       case 'queuedDL':
       case 'queuedUP':
+      case 'queuedForChecking':
         return 'queued';
       case 'checkingDL':
       case 'checkingUP':
       case 'checkingResumeData':
+      case 'allocating':
+      case 'moving':
         return 'checking';
       case 'error':
       case 'missingFiles':

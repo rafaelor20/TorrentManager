@@ -13,7 +13,7 @@ import { state } from '../state.js';
 import { apiService } from '../services/apiService.js';
 import { formatarTamanho, formatarVelocidade, mapearStatusLegivel, normalizarTextoBusca, extrairTokensBusca } from '../utils/formatters.js';
 import { mostrarToast } from './toast.js';
-import { selecionarTorrent } from './filesManager.js';
+import { selecionarTorrent, atualizarHeaderTorrentSelecionado, atualizarArquivosSilenciosamente } from './filesManager.js';
 
 // ==========================================
 // 1. FILTRAGEM DE TORRENTS (STATUS, CATEGORIA & BUSCA)
@@ -656,8 +656,44 @@ export async function carregarTorrents(isManual = false) {
     if (lastSyncTime) lastSyncTime.textContent = `Última sincronização: ${horaStr}`;
 
     if (ok && data.sucesso) {
+      state.isConectadoCliente = true;
       const torrents = data.torrents || [];
       state.todosTorrents = torrents;
+
+      // Sincroniza dados do torrent selecionado atualmente e seus arquivos
+      if (state.torrentSelecionadoAtual) {
+        if (state.torrentSelecionadoAtual.isCategoryVirtual) {
+          const catKey = state.torrentSelecionadoAtual.category || '__none__';
+          const membrosAtualizados = torrents.filter((t) => {
+            const tCat = (t.category && t.category.trim()) || '__none__';
+            return tCat === catKey;
+          });
+          if (membrosAtualizados.length > 0) {
+            const consolidados = gerarTorrentsConsolidadosPorCategoria(membrosAtualizados);
+            if (consolidados.length > 0) {
+              state.torrentSelecionadoAtual = {
+                ...state.torrentSelecionadoAtual,
+                ...consolidados[0],
+              };
+            }
+          }
+        } else {
+          const atualizado = torrents.find((t) => t.hash === state.torrentSelecionadoAtual.hash);
+          if (atualizado) {
+            state.torrentSelecionadoAtual = {
+              ...state.torrentSelecionadoAtual,
+              ...atualizado,
+            };
+          }
+        }
+
+        atualizarHeaderTorrentSelecionado();
+
+        const torrentFilesSection = document.getElementById('torrentFilesSection');
+        if (torrentFilesSection && torrentFilesSection.style.display !== 'none') {
+          atualizarArquivosSilenciosamente(state.torrentSelecionadoAtual);
+        }
+      }
 
       // Atualiza estatísticas no topo
       if (statTotalTorrents) statTotalTorrents.textContent = torrents.length;

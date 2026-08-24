@@ -902,14 +902,112 @@ function initFilesContextMenu() {
 // 8. SELEÇÃO E APLICAÇÃO DE PRIORIDADES
 // ==========================================
 
-export async function selecionarTorrent(torrent) {
-  state.torrentSelecionadoAtual = torrent;
+export function atualizarHeaderTorrentSelecionado() {
+  const torrent = state.torrentSelecionadoAtual;
+  if (!torrent) return;
 
-  const torrentFilesSection = document.getElementById('torrentFilesSection');
   const selectedTorrentName = document.getElementById('selectedTorrentName');
   const selectedTorrentMeta = document.getElementById('selectedTorrentMeta');
   const selectedTorrentStatus = document.getElementById('selectedTorrentStatus');
   const filesHashTag = document.getElementById('filesHashTag');
+
+  if (selectedTorrentName) selectedTorrentName.textContent = torrent.name;
+
+  const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
+  if (selectedTorrentStatus) {
+    selectedTorrentStatus.textContent = statusInfo.label;
+    selectedTorrentStatus.className = `selected-torrent-status status-tag ${statusInfo.classe}`;
+  }
+
+  if (filesHashTag) {
+    filesHashTag.textContent = torrent.isCategoryVirtual
+      ? `Categoria Unificada • ${torrent.torrentsList?.length || 0} torrents`
+      : `Hash: ${torrent.hash}`;
+  }
+
+  if (selectedTorrentMeta) {
+    const totalArquivos = state.todosArquivosDoTorrent.length;
+    if (torrent.isCategoryVirtual) {
+      selectedTorrentMeta.textContent = `${totalArquivos.toLocaleString('pt-BR')} arquivos consolidados de ${torrent.torrentsList?.length || 0} torrents • ${formatarTamanho(torrent.size)} no total`;
+    } else {
+      selectedTorrentMeta.textContent = `${totalArquivos.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
+    }
+  }
+}
+
+export async function atualizarArquivosSilenciosamente(torrent) {
+  if (!torrent || !torrent.hash) return;
+  const torrentFilesSection = document.getElementById('torrentFilesSection');
+  if (!torrentFilesSection || torrentFilesSection.style.display === 'none') return;
+
+  try {
+    if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
+      const resultados = await Promise.all(
+        torrent.torrentsList.map(async (t) => {
+          const { ok, data } = await apiService.getTorrentFiles(t.hash);
+          return {
+            torrent: t,
+            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
+          };
+        })
+      );
+
+      const novosPorOrigem = new Map();
+      resultados.forEach(({ torrent: t, files }) => {
+        files.forEach((f, idx) => {
+          const origIdx = typeof f.index === 'number' ? f.index : idx;
+          novosPorOrigem.set(`${t.hash}_${origIdx}`, f);
+        });
+      });
+
+      if (state.todosArquivosDoTorrent.length > 0) {
+        state.todosArquivosDoTorrent.forEach((item) => {
+          const key = `${item._originTorrentHash}_${item._originFileIndex}`;
+          const novo = novosPorOrigem.get(key);
+          if (novo) {
+            item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
+            item.priority = typeof novo.priority === 'number' ? novo.priority : item.priority;
+            item.size = novo.size || item.size;
+            item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+          }
+        });
+      }
+    } else {
+      const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
+      if (ok && data.sucesso && Array.isArray(data.files)) {
+        const novosPorIdx = new Map();
+        data.files.forEach((f, idx) => {
+          const fileIndex = typeof f.index === 'number' ? f.index : idx;
+          novosPorIdx.set(fileIndex, f);
+        });
+
+        if (state.todosArquivosDoTorrent.length > 0) {
+          state.todosArquivosDoTorrent.forEach((item) => {
+            const fileIndex = item._fileIndex !== undefined ? item._fileIndex : item.index;
+            const novo = novosPorIdx.get(fileIndex);
+            if (novo) {
+              item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
+              item.priority = typeof novo.priority === 'number' ? novo.priority : item.priority;
+              item.size = novo.size || item.size;
+              item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+            }
+          });
+        }
+      }
+    }
+
+    state.arquivosFiltradosAtuais = obterArquivosVisiveis();
+    renderizarTabelaArquivosVirtualizada();
+    atualizarHeaderTorrentSelecionado();
+  } catch {
+    // Ignora erros transitórios durante atualização silenciosa em background
+  }
+}
+
+export async function selecionarTorrent(torrent) {
+  state.torrentSelecionadoAtual = torrent;
+
+  const torrentFilesSection = document.getElementById('torrentFilesSection');
   const filesCountText = document.getElementById('filesCountText');
   const searchResultCount = document.getElementById('searchResultCount');
   const filesTableBody = document.getElementById('filesTableBody');
@@ -924,21 +1022,14 @@ export async function selecionarTorrent(torrent) {
   });
 
   if (torrentFilesSection) torrentFilesSection.style.display = 'flex';
-  if (selectedTorrentName) selectedTorrentName.textContent = torrent.name;
-  if (selectedTorrentMeta) selectedTorrentMeta.textContent = `Tamanho total: ${formatarTamanho(torrent.size)}`;
 
   if (inputSearchFiles) inputSearchFiles.value = '';
   if (filterStatusAll) filterStatusAll.checked = true;
   if (filterOnlySelected) filterOnlySelected.checked = false;
   if (btnClearSearch) btnClearSearch.style.display = 'none';
 
-  const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
-  if (selectedTorrentStatus) selectedTorrentStatus.textContent = statusInfo.label;
-  if (filesHashTag) {
-    filesHashTag.textContent = torrent.isCategoryVirtual
-      ? `Categoria Unificada • ${torrent.torrentsList?.length || 0} torrents`
-      : `Hash: ${torrent.hash}`;
-  }
+  atualizarHeaderTorrentSelecionado();
+
   if (filesCountText) filesCountText.textContent = 'Carregando arquivos...';
   if (searchResultCount) searchResultCount.textContent = 'Carregando lista...';
 

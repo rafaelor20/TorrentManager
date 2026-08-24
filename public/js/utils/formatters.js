@@ -16,6 +16,53 @@ export function formatarVelocidade(bytesPorSec) {
 }
 
 export function mapearStatusLegivel(status, rawState) {
+  if (rawState) {
+    switch (rawState) {
+      case 'downloading':
+        return { label: 'Baixando', classe: 'downloading' };
+      case 'forcedDL':
+        return { label: 'Baixando (Forçado)', classe: 'downloading' };
+      case 'stalledDL':
+        return { label: 'Baixando (Pendente)', classe: 'downloading' };
+      case 'metaDL':
+      case 'forcedMetaDL':
+        return { label: 'Baixando Metadados', classe: 'downloading' };
+      case 'uploading':
+        return { label: 'Enviando (Seed)', classe: 'uploading' };
+      case 'forcedUP':
+        return { label: 'Enviando (Forçado)', classe: 'uploading' };
+      case 'stalledUP':
+        return { label: 'Enviando (Sem Conexão)', classe: 'uploading' };
+      case 'pausedDL':
+        return { label: 'Pausado', classe: 'paused' };
+      case 'stoppedDL':
+        return { label: 'Parado', classe: 'paused' };
+      case 'pausedUP':
+      case 'stoppedUP':
+        return { label: 'Concluído (Pausado)', classe: 'completed' };
+      case 'queuedDL':
+        return { label: 'Em Fila (Download)', classe: 'queued' };
+      case 'queuedUP':
+        return { label: 'Em Fila (Envio)', classe: 'queued' };
+      case 'queuedForChecking':
+        return { label: 'Em Fila (Verificação)', classe: 'queued' };
+      case 'checkingDL':
+      case 'checkingUP':
+      case 'checkingResumeData':
+        return { label: 'Verificando', classe: 'checking' };
+      case 'allocating':
+        return { label: 'Alocando Espaço', classe: 'checking' };
+      case 'moving':
+        return { label: 'Movendo Arquivos', classe: 'checking' };
+      case 'error':
+        return { label: 'Erro', classe: 'error' };
+      case 'missingFiles':
+        return { label: 'Arquivos Ausentes', classe: 'error' };
+      default:
+        break;
+    }
+  }
+
   switch (status) {
     case 'downloading':
       return { label: 'Baixando', classe: 'downloading' };

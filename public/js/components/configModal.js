@@ -10,7 +10,6 @@ import { carregarTorrents } from './torrentsTable.js';
 
 export function configurarAutoRefresh(segundos) {
   const infoAutoRefreshStatus = document.getElementById('infoAutoRefreshStatus');
-  const torrentFilesSection = document.getElementById('torrentFilesSection');
 
   if (state.timerAutoRefresh) {
     clearInterval(state.timerAutoRefresh);
@@ -28,9 +27,7 @@ export function configurarAutoRefresh(segundos) {
 
   if (state.autoRefreshSegundos > 0) {
     state.timerAutoRefresh = setInterval(async () => {
-      if (state.isConectadoCliente && (!torrentFilesSection || torrentFilesSection.style.display === 'none')) {
-        await carregarTorrents(false);
-      }
+      await carregarTorrents(false);
     }, state.autoRefreshSegundos * 1000);
   }
 }
@@ -213,7 +210,7 @@ export function initQuickConnectionForm() {
   const inputPort = document.getElementById('inputPort');
   const inputUsername = document.getElementById('inputUsername');
   const inputPassword = document.getElementById('inputPassword');
-  const inputHttps = document.getElementById('inputHttps');
+  const inputRefreshInterval = document.getElementById('inputRefreshInterval');
   const inputSaveConfig = document.getElementById('inputSaveConfig');
   const btnConectar = document.getElementById('btnConectar');
   const btnConectarText = document.getElementById('btnConectarText');
@@ -222,6 +219,10 @@ export function initQuickConnectionForm() {
   const btnDesconectar = document.getElementById('btnDesconectar');
   const infoEndpoint = document.getElementById('infoEndpoint');
   const torrentFilesSection = document.getElementById('torrentFilesSection');
+
+  inputRefreshInterval?.addEventListener('change', () => {
+    configurarAutoRefresh(inputRefreshInterval.value);
+  });
 
   formConnection?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -234,6 +235,7 @@ export function initQuickConnectionForm() {
       username: inputUsername?.value.trim(),
       password: inputPassword?.value || undefined,
       useHttps: Boolean(inputHttps?.checked),
+      refreshInterval: Number(inputRefreshInterval?.value) ?? 10,
       salvarConfig: Boolean(inputSaveConfig?.checked),
     };
 
@@ -251,6 +253,7 @@ export function initQuickConnectionForm() {
       }
 
       atualizarStatusDiagnostico(data);
+      configurarAutoRefresh(payload.refreshInterval);
       await carregarTorrents();
     } catch (err) {
       mostrarToast('Erro de Rede', `Falha ao enviar requisição: ${err.message}`, 'error');
@@ -272,10 +275,12 @@ export function initQuickConnectionForm() {
         username: inputUsername?.value.trim(),
         password: inputPassword?.value || undefined,
         useHttps: Boolean(inputHttps?.checked),
+        refreshInterval: Number(inputRefreshInterval?.value) ?? 10,
       };
 
       const data = await apiService.saveConfig(payload);
       if (data.sucesso) {
+        configurarAutoRefresh(payload.refreshInterval);
         mostrarToast('Configurações Salvas', 'As configurações foram salvas em data/config.json com sucesso!', 'success');
       } else {
         mostrarToast('Erro ao Salvar', data.erro || 'Falha ao salvar configurações', 'error');
