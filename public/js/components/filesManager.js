@@ -1340,21 +1340,28 @@ export async function salvarPrioridades() {
 
   const marcadosIndices = [];
   const desmarcadosIndices = [];
+  const recemDesativadosIndices = [];
 
   state.todosArquivosDoTorrent.forEach((f, idx) => {
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : idx);
-    if (state.arquivosSelecionadosIndices.has(fileIndex)) {
+    const estaMarcado = state.arquivosSelecionadosIndices.has(fileIndex);
+    const eraAtivo = Number(f.priority ?? 1) !== 0;
+
+    if (estaMarcado) {
       marcadosIndices.push(fileIndex);
     } else {
       desmarcadosIndices.push(fileIndex);
+      if (eraAtivo) {
+        recemDesativadosIndices.push(fileIndex);
+      }
     }
   });
 
   let apagarDesativados = false;
 
-  // Se houver arquivos desativados (Não Baixar / prioridade 0), pergunta se deve apagá-los do disco
-  if (desmarcadosIndices.length > 0) {
-    const decisao = await perguntarExclusaoArquivosFisicos(desmarcadosIndices.length);
+  // Pergunta sobre exclusão do disco APENAS se houver arquivos que eram ativos e foram recém-desativados nesta ação
+  if (recemDesativadosIndices.length > 0) {
+    const decisao = await perguntarExclusaoArquivosFisicos(recemDesativadosIndices.length);
     if (decisao === null) {
       // Usuário cancelou a operação no modal
       return;

@@ -9,7 +9,6 @@ const RELEASE_DIR = path.join(ROOT_DIR, 'release');
 const BIN_DIR = path.join(ROOT_DIR, 'bin');
 const BUNDLE_FILE = path.join(DIST_DIR, 'bundle.cjs');
 const BLOB_FILE = path.join(DIST_DIR, 'sea-prep.blob');
-const FINAL_LINUX_BIN = path.join(RELEASE_DIR, 'TorrentManager');
 const SEA_CONFIG = path.join(ROOT_DIR, 'sea-config.json');
 
 console.log('================================================================');
@@ -35,8 +34,25 @@ execSync(
 );
 console.log(`✓ Bundle CJS gerado: ${BUNDLE_FILE}\n`);
 
-// 4. Gerar Blob SEA (Single Executable Application)
-console.log('Passo 3/5: Gerando Blob de aplicação executável pelo Node.js...');
+// 4. Preparar binário base Linux do Node.js 20 LTS
+console.log('Passo 3/5: Preparando binário base Linux x64 (v20.18.0)...');
+const linuxNodeVersion = process.env.LINUX_NODE_VERSION || 'v20.18.0';
+const versionedLinuxBin = path.join(BIN_DIR, `node-linux-x64-${linuxNodeVersion}`);
+
+if (!fs.existsSync(versionedLinuxBin)) {
+  console.log(`Baixando binário oficial do Node.js ${linuxNodeVersion} para Linux x64...`);
+  if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
+  execSync(
+    `curl -sL "https://nodejs.org/dist/${linuxNodeVersion}/node-${linuxNodeVersion}-linux-x64.tar.xz" | tar -xJ -C "${BIN_DIR}" --strip-components=2 "node-${linuxNodeVersion}-linux-x64/bin/node"`,
+    { stdio: 'inherit', cwd: ROOT_DIR }
+  );
+  fs.renameSync(path.join(BIN_DIR, 'node'), versionedLinuxBin);
+  fs.chmodSync(versionedLinuxBin, 0o755);
+}
+console.log(`✓ Binário base pronto em: ${versionedLinuxBin}\n`);
+
+// 5. Gerar Blob SEA (Single Executable Application) com Node 20 LTS
+console.log(`Passo 4/5: Gerando Blob SEA com Node.js ${linuxNodeVersion}...`);
 fs.writeFileSync(
   SEA_CONFIG,
   JSON.stringify({
@@ -49,20 +65,23 @@ fs.writeFileSync(
   'utf-8'
 );
 
-execSync(`node --experimental-sea-config "${SEA_CONFIG}"`, {
+execSync(`"${versionedLinuxBin}" --experimental-sea-config "${SEA_CONFIG}"`, {
   stdio: 'inherit',
   cwd: ROOT_DIR,
 });
 console.log(`✓ Blob binário gerado: ${BLOB_FILE}\n`);
 
-// 5. Copiar binário base do Node.js
-console.log('Passo 4/5: Preparando binário base Linux do Node.js...');
-const nodeBinary = process.execPath;
-fs.copyFileSync(nodeBinary, FINAL_LINUX_BIN);
-fs.chmodSync(FINAL_LINUX_BIN, 0o755);
-console.log(`✓ Binário base copiado de: ${nodeBinary}\n`);
+// 6. Preparar diretório de montagem (staging) isolado
+console.log('Preparando arquivos do pacote na pasta de montagem...');
+const STAGING_DIR = path.join(ROOT_DIR, '.staging-linux');
+if (fs.existsSync(STAGING_DIR)) fs.rmSync(STAGING_DIR, { recursive: true, force: true });
+fs.mkdirSync(STAGING_DIR, { recursive: true });
 
-// 6. Injetar Blob no executável via postject
+const FINAL_LINUX_BIN = path.join(STAGING_DIR, 'TorrentManager');
+fs.copyFileSync(versionedLinuxBin, FINAL_LINUX_BIN);
+fs.chmodSync(FINAL_LINUX_BIN, 0o755);
+
+// 7. Injetar Blob no executável via postject
 console.log('Passo 5/5: Injetando código e recursos no TorrentManager via postject...');
 const postjectCmd = [
   'npx postject',
@@ -76,35 +95,33 @@ execSync(postjectCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 fs.chmodSync(FINAL_LINUX_BIN, 0o755);
 console.log(`✓ Executável Linux criado com sucesso: ${FINAL_LINUX_BIN}\n`);
 
-// 7. Preparar arquivos auxiliares em release/
-console.log('Preparando arquivos auxiliares na pasta release/...');
-const releasePublic = path.join(RELEASE_DIR, 'public');
-const releaseData = path.join(RELEASE_DIR, 'data');
-
-if (!fs.existsSync(releasePublic)) fs.mkdirSync(releasePublic, { recursive: true });
-if (!fs.existsSync(releaseData)) fs.mkdirSync(releaseData, { recursive: true });
+// 8. Copiar recursos auxiliares para staging
+const stagingPublic = path.join(STAGING_DIR, 'public');
+const stagingData = path.join(STAGING_DIR, 'data');
+fs.mkdirSync(stagingPublic, { recursive: true });
+fs.mkdirSync(stagingData, { recursive: true });
 
 // Copiar pasta public/ (recursivo)
 const publicSrc = path.join(ROOT_DIR, 'public');
 if (fs.existsSync(publicSrc)) {
-  fs.cpSync(publicSrc, releasePublic, { recursive: true });
-  console.log(`✓ Interface web copiada para: release/public`);
+  fs.cpSync(publicSrc, stagingPublic, { recursive: true });
+  console.log(`✓ Interface web copiada para o pacote.`);
 }
 
-// Copiar ou criar .env.example na pasta release/
+// Copiar .env.example
 const envExampleSrc = path.join(ROOT_DIR, '.env.example');
-const envExampleDst = path.join(RELEASE_DIR, '.env.example');
+const envExampleDst = path.join(STAGING_DIR, '.env.example');
 if (fs.existsSync(envExampleSrc)) {
   fs.copyFileSync(envExampleSrc, envExampleDst);
-  console.log(`✓ Arquivo de exemplo .env.example copiado para: release/.env.example`);
+  console.log(`✓ Arquivo de exemplo .env.example copiado.`);
 }
 
 // Copiar ou criar config.json inicial
 const configSrc = path.join(ROOT_DIR, 'data/config.json');
-const configDst = path.join(releaseData, 'config.json');
+const configDst = path.join(stagingData, 'config.json');
 if (fs.existsSync(configSrc)) {
   fs.copyFileSync(configSrc, configDst);
-  console.log(`✓ Configuração persistente copiada para: release/data/config.json`);
+  console.log(`✓ Configuração persistente copiada.`);
 } else {
   const defaultConf = {
     server: { port: 3000, host: '0.0.0.0' },
@@ -119,7 +136,6 @@ if (fs.existsSync(configSrc)) {
     },
   };
   fs.writeFileSync(configDst, JSON.stringify(defaultConf, null, 2), 'utf-8');
-  console.log(`✓ Configuração padrão criada em: release/data/config.json`);
 }
 
 // Criar script iniciar.sh para Linux
@@ -152,10 +168,9 @@ fi
 
 exec "$SCRIPT_DIR/TorrentManager"
 `;
-const shPath = path.join(RELEASE_DIR, 'iniciar.sh');
+const shPath = path.join(STAGING_DIR, 'iniciar.sh');
 fs.writeFileSync(shPath, shContent, 'utf-8');
 fs.chmodSync(shPath, 0o755);
-console.log(`✓ Script iniciar.sh gerado em release/iniciar.sh`);
 
 // Criar README Linux
 const readmeContent = `================================================================
@@ -185,12 +200,11 @@ ARQUIVOS DO PACOTE:
 - data/          : Pasta de persistência (config.json, banco de dados).
 - LEIAME-LINUX.txt : Instruções de uso.
 `;
-fs.writeFileSync(path.join(RELEASE_DIR, 'LEIAME-LINUX.txt'), readmeContent, 'utf-8');
+fs.writeFileSync(path.join(STAGING_DIR, 'LEIAME-LINUX.txt'), readmeContent, 'utf-8');
 
-// 8. Gerar arquivo compactado ZIP usando archiver (100% puro Node.js, sem dependência do utilitário zip do SO)
+// 9. Gerar arquivo compactado ZIP
 console.log('Compactando pacote de distribuição para .zip...');
 const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Linux-x64.zip');
-
 const filesToZip = ['TorrentManager', 'iniciar.sh', '.env.example', 'LEIAME-LINUX.txt', 'public', 'data'];
 
 await new Promise((resolve, reject) => {
@@ -206,7 +220,7 @@ await new Promise((resolve, reject) => {
   archive.pipe(output);
 
   for (const item of filesToZip) {
-    const itemPath = path.join(RELEASE_DIR, item);
+    const itemPath = path.join(STAGING_DIR, item);
     if (!fs.existsSync(itemPath)) continue;
     const stats = fs.statSync(itemPath);
     if (stats.isDirectory()) {
@@ -219,26 +233,13 @@ await new Promise((resolve, reject) => {
   archive.finalize();
 });
 
-// 9. Limpeza de todos os arquivos temporários e intermediários, mantendo apenas .zip
-console.log('Realizando limpeza de arquivos temporários e intermediários...');
-
-[DIST_DIR, BIN_DIR].forEach(dir => {
+// 10. Limpeza da pasta staging e dist/
+console.log('Realizando limpeza de arquivos intermediários...');
+[DIST_DIR, STAGING_DIR].forEach(dir => {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
-    console.log(`✓ Removido diretório temporário: ${path.basename(dir)}/`);
   }
 });
-
-if (fs.existsSync(RELEASE_DIR)) {
-  const entries = fs.readdirSync(RELEASE_DIR);
-  for (const entry of entries) {
-    if (!entry.endsWith('.zip')) {
-      const fullPath = path.join(RELEASE_DIR, entry);
-      fs.rmSync(fullPath, { recursive: true, force: true });
-    }
-  }
-  console.log('✓ Pasta release/ limpa (preservados apenas os arquivos .zip)');
-}
 
 const stats = fs.statSync(zipOutputFile);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
@@ -246,5 +247,4 @@ const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 console.log('\n================================================================');
 console.log('✓ BUILD LINUX CONCLUÍDO COM SUCESSO!');
 console.log(`✓ Pacote final: release/TorrentManager-Linux-x64.zip (${tamanhoMB} MB)`);
-console.log('✓ Todos os arquivos temporários e intermediários foram limpos.');
 console.log('================================================================\n');

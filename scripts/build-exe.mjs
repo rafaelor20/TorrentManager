@@ -9,8 +9,6 @@ const RELEASE_DIR = path.join(ROOT_DIR, 'release');
 const BIN_DIR = path.join(ROOT_DIR, 'bin');
 const BUNDLE_FILE = path.join(DIST_DIR, 'bundle.cjs');
 const BLOB_FILE = path.join(DIST_DIR, 'sea-prep.blob');
-const BASE_WIN_EXE = path.join(BIN_DIR, 'node-win-x64.exe');
-const FINAL_WIN_EXE = path.join(RELEASE_DIR, 'TorrentManager.exe');
 const SEA_CONFIG = path.join(ROOT_DIR, 'sea-config.json');
 
 console.log('================================================================');
@@ -36,8 +34,27 @@ execSync(
 );
 console.log(`✓ Bundle CJS gerado: ${BUNDLE_FILE}\n`);
 
-// 4. Gerar Blob SEA (Single Executable Application)
-console.log('Passo 3/5: Gerando Blob de aplicação executável pelo Node.js...');
+// 4. Preparar runner e binário base do Node.js 20 LTS
+const targetNodeVersion = process.env.WIN_NODE_VERSION || 'v20.18.0';
+const versionedWinExe = path.join(BIN_DIR, `node-win-x64-${targetNodeVersion}.exe`);
+const versionedLinuxRunner = path.join(BIN_DIR, `node-linux-x64-${targetNodeVersion}`);
+
+let seaGeneratorNode = 'node';
+if (process.platform === 'linux') {
+  if (!fs.existsSync(versionedLinuxRunner)) {
+    console.log(`Preparando runner Node.js ${targetNodeVersion} para geração do Blob SEA...`);
+    if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
+    execSync(
+      `curl -sL "https://nodejs.org/dist/${targetNodeVersion}/node-${targetNodeVersion}-linux-x64.tar.xz" | tar -xJ -C "${BIN_DIR}" --strip-components=2 "node-${targetNodeVersion}-linux-x64/bin/node"`,
+      { stdio: 'inherit', cwd: ROOT_DIR }
+    );
+    fs.renameSync(path.join(BIN_DIR, 'node'), versionedLinuxRunner);
+    fs.chmodSync(versionedLinuxRunner, 0o755);
+  }
+  seaGeneratorNode = `"${versionedLinuxRunner}"`;
+}
+
+console.log(`Passo 3/5: Gerando Blob SEA compatível com Node.js ${targetNodeVersion}...`);
 fs.writeFileSync(
   SEA_CONFIG,
   JSON.stringify({
@@ -50,28 +67,31 @@ fs.writeFileSync(
   'utf-8'
 );
 
-execSync(`node --experimental-sea-config "${SEA_CONFIG}"`, {
+execSync(`${seaGeneratorNode} --experimental-sea-config "${SEA_CONFIG}"`, {
   stdio: 'inherit',
   cwd: ROOT_DIR,
 });
 console.log(`✓ Blob binário gerado: ${BLOB_FILE}\n`);
 
-// 5. Obter executável base do Windows correspondente à versão exata do Node.js
-const nodeVersion = process.version;
-const versionedWinExe = path.join(BIN_DIR, `node-win-x64-${nodeVersion}.exe`);
-
-console.log(`Passo 4/5: Preparando binário base Windows x64 (${nodeVersion})...`);
+console.log(`Passo 4/5: Preparando binário base Windows x64 (${targetNodeVersion})...`);
 if (!fs.existsSync(versionedWinExe)) {
-  console.log(`Baixando executável base oficial do Node.js ${nodeVersion} para Windows x64...`);
-  const downloadCmd = `curl -sL "https://nodejs.org/dist/${nodeVersion}/win-x64/node.exe" -o "${versionedWinExe}"`;
+  console.log(`Baixando executável base oficial do Node.js ${targetNodeVersion} para Windows x64...`);
+  const downloadCmd = `curl -sL "https://nodejs.org/dist/${targetNodeVersion}/win-x64/node.exe" -o "${versionedWinExe}"`;
   execSync(downloadCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 }
 console.log(`✓ Executável base pronto em: ${versionedWinExe}\n`);
 
-// 6. Injetar Blob no executável via postject
-console.log('Passo 5/5: Injetando código e recursos no TorrentManager.exe via postject...');
+// 6. Preparar diretório de montagem (staging) isolado
+console.log('Preparando arquivos do pacote na pasta de montagem...');
+const STAGING_DIR = path.join(ROOT_DIR, '.staging-win');
+if (fs.existsSync(STAGING_DIR)) fs.rmSync(STAGING_DIR, { recursive: true, force: true });
+fs.mkdirSync(STAGING_DIR, { recursive: true });
+
+const FINAL_WIN_EXE = path.join(STAGING_DIR, 'TorrentManager.exe');
 fs.copyFileSync(versionedWinExe, FINAL_WIN_EXE);
 
+// 7. Injetar Blob no executável via postject
+console.log('Passo 5/5: Injetando código e recursos no TorrentManager.exe via postject...');
 const postjectCmd = [
   'npx postject',
   `"${FINAL_WIN_EXE}"`,
@@ -83,35 +103,33 @@ const postjectCmd = [
 execSync(postjectCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 console.log(`✓ Executável Windows criado com sucesso: ${FINAL_WIN_EXE}\n`);
 
-// 7. Preparar pacote portátil em release/
-console.log('Preparando arquivos auxiliares na pasta release/...');
-const releasePublic = path.join(RELEASE_DIR, 'public');
-const releaseData = path.join(RELEASE_DIR, 'data');
-
-if (!fs.existsSync(releasePublic)) fs.mkdirSync(releasePublic, { recursive: true });
-if (!fs.existsSync(releaseData)) fs.mkdirSync(releaseData, { recursive: true });
+// 8. Copiar recursos auxiliares para staging
+const stagingPublic = path.join(STAGING_DIR, 'public');
+const stagingData = path.join(STAGING_DIR, 'data');
+fs.mkdirSync(stagingPublic, { recursive: true });
+fs.mkdirSync(stagingData, { recursive: true });
 
 // Copiar pasta public/ (recursivo)
 const publicSrc = path.join(ROOT_DIR, 'public');
 if (fs.existsSync(publicSrc)) {
-  fs.cpSync(publicSrc, releasePublic, { recursive: true });
-  console.log(`✓ Interface web copiada para: release/public`);
+  fs.cpSync(publicSrc, stagingPublic, { recursive: true });
+  console.log(`✓ Interface web copiada para o pacote.`);
 }
 
-// Copiar ou criar .env.example na pasta release/
+// Copiar .env.example
 const envExampleSrc = path.join(ROOT_DIR, '.env.example');
-const envExampleDst = path.join(RELEASE_DIR, '.env.example');
+const envExampleDst = path.join(STAGING_DIR, '.env.example');
 if (fs.existsSync(envExampleSrc)) {
   fs.copyFileSync(envExampleSrc, envExampleDst);
-  console.log(`✓ Arquivo de exemplo .env.example copiado para: release/.env.example`);
+  console.log(`✓ Arquivo de exemplo .env.example copiado.`);
 }
 
 // Copiar ou criar config.json inicial
 const configSrc = path.join(ROOT_DIR, 'data/config.json');
-const configDst = path.join(releaseData, 'config.json');
+const configDst = path.join(stagingData, 'config.json');
 if (fs.existsSync(configSrc)) {
   fs.copyFileSync(configSrc, configDst);
-  console.log(`✓ Configuração persistente copiada para: release/data/config.json`);
+  console.log(`✓ Configuração persistente copiada.`);
 } else {
   const defaultConf = {
     server: { port: 3000, host: '0.0.0.0' },
@@ -126,7 +144,6 @@ if (fs.existsSync(configSrc)) {
     },
   };
   fs.writeFileSync(configDst, JSON.stringify(defaultConf, null, 2), 'utf-8');
-  console.log(`✓ Configuração padrão criada em: release/data/config.json`);
 }
 
 // Criar script iniciar.bat para Windows com detecção inteligente de porta no .env
@@ -156,8 +173,7 @@ start http://localhost:%SERVER_PORT%
 "%~dp0TorrentManager.exe"
 pause
 `;
-fs.writeFileSync(path.join(RELEASE_DIR, 'iniciar.bat'), batContent, 'utf-8');
-console.log(`✓ Script iniciar.bat gerado em release/iniciar.bat`);
+fs.writeFileSync(path.join(STAGING_DIR, 'iniciar.bat'), batContent, 'utf-8');
 
 // Criar README com instruções
 const readmeContent = `================================================================
@@ -189,12 +205,11 @@ REQUISITOS:
 - Windows 10 ou Windows 11 (64-bit).
 - Não é necessário ter o Node.js instalado na máquina do usuário.
 `;
-fs.writeFileSync(path.join(RELEASE_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
+fs.writeFileSync(path.join(STAGING_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
 
-// 8. Gerar arquivo compactado ZIP usando archiver (100% puro Node.js)
+// 9. Gerar arquivo compactado ZIP
 console.log('Compactando pacote de distribuição para .zip...');
 const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Windows-x64.zip');
-
 const filesToZip = ['TorrentManager.exe', 'iniciar.bat', '.env.example', 'LEIAME.txt', 'public', 'data'];
 
 await new Promise((resolve, reject) => {
@@ -210,7 +225,7 @@ await new Promise((resolve, reject) => {
   archive.pipe(output);
 
   for (const item of filesToZip) {
-    const itemPath = path.join(RELEASE_DIR, item);
+    const itemPath = path.join(STAGING_DIR, item);
     if (!fs.existsSync(itemPath)) continue;
     const stats = fs.statSync(itemPath);
     if (stats.isDirectory()) {
@@ -223,28 +238,13 @@ await new Promise((resolve, reject) => {
   archive.finalize();
 });
 
-// 9. Limpeza de todos os intermediários e temporários, mantendo apenas arquivos .zip finais
-console.log('Realizando limpeza de arquivos temporários e intermediários...');
-
-// Remove diretórios intermediários dist/ e bin/
-[DIST_DIR, BIN_DIR].forEach(dir => {
+// 10. Limpeza da pasta staging e dist/
+console.log('Realizando limpeza de arquivos intermediários...');
+[DIST_DIR, STAGING_DIR].forEach(dir => {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
-    console.log(`✓ Removido diretório temporário: ${path.basename(dir)}/`);
   }
 });
-
-// Remove arquivos e pastas soltas em release/ que não sejam .zip
-if (fs.existsSync(RELEASE_DIR)) {
-  const entries = fs.readdirSync(RELEASE_DIR);
-  for (const entry of entries) {
-    if (!entry.endsWith('.zip')) {
-      const fullPath = path.join(RELEASE_DIR, entry);
-      fs.rmSync(fullPath, { recursive: true, force: true });
-    }
-  }
-  console.log('✓ Pasta release/ limpa (preservados apenas os arquivos .zip)');
-}
 
 const stats = fs.statSync(zipOutputFile);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
@@ -252,5 +252,4 @@ const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 console.log('\n================================================================');
 console.log('✓ BUILD WINDOWS CONCLUÍDO COM SUCESSO!');
 console.log(`✓ Pacote final: release/TorrentManager-Windows-x64.zip (${tamanhoMB} MB)`);
-console.log('✓ Todos os arquivos temporários e intermediários foram limpos.');
 console.log('================================================================\n');
