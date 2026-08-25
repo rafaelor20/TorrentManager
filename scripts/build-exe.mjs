@@ -210,33 +210,21 @@ fs.writeFileSync(path.join(STAGING_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
 // 9. Gerar arquivo compactado ZIP
 console.log('Compactando pacote de distribuição para .zip...');
 const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Windows-x64.zip');
-const filesToZip = ['TorrentManager.exe', 'iniciar.bat', '.env.example', 'LEIAME.txt', 'public', 'data'];
 
-await new Promise((resolve, reject) => {
-  const output = fs.createWriteStream(zipOutputFile);
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+const output = fs.createWriteStream(zipOutputFile);
+const archive = new ZipArchive({ zlib: { level: 9 } });
+archive.pipe(output);
 
-  output.on('close', () => {
-    console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip\n`);
-    resolve();
-  });
-
-  archive.on('error', (err) => reject(err));
-  archive.pipe(output);
-
-  for (const item of filesToZip) {
-    const itemPath = path.join(STAGING_DIR, item);
-    if (!fs.existsSync(itemPath)) continue;
-    const stats = fs.statSync(itemPath);
-    if (stats.isDirectory()) {
-      archive.directory(itemPath, item);
-    } else {
-      archive.file(itemPath, { name: item, mode: stats.mode });
-    }
-  }
-
-  archive.finalize();
+const closePromise = new Promise((resolve, reject) => {
+  output.on('close', resolve);
+  output.on('error', reject);
+  archive.on('error', reject);
 });
+
+archive.directory(STAGING_DIR, false);
+await archive.finalize();
+await closePromise;
+console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip\n`);
 
 // 10. Limpeza da pasta staging e dist/
 console.log('Realizando limpeza de arquivos intermediários...');

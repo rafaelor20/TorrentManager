@@ -966,9 +966,18 @@ export async function atualizarArquivosSilenciosamente(torrent) {
           const novo = novosPorOrigem.get(key);
           if (novo) {
             item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
-            item.priority = typeof novo.priority === 'number' ? novo.priority : item.priority;
             item.size = novo.size || item.size;
             item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+
+            if (typeof novo.priority === 'number') {
+              item.priority = novo.priority;
+              const globalIdx = item._fileIndex !== undefined ? item._fileIndex : item.index;
+              if (item.priority !== 0) {
+                state.arquivosSelecionadosIndices.add(globalIdx);
+              } else {
+                state.arquivosSelecionadosIndices.delete(globalIdx);
+              }
+            }
           }
         });
       }
@@ -987,9 +996,17 @@ export async function atualizarArquivosSilenciosamente(torrent) {
             const novo = novosPorIdx.get(fileIndex);
             if (novo) {
               item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
-              item.priority = typeof novo.priority === 'number' ? novo.priority : item.priority;
               item.size = novo.size || item.size;
               item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+
+              if (typeof novo.priority === 'number') {
+                item.priority = novo.priority;
+                if (item.priority !== 0) {
+                  state.arquivosSelecionadosIndices.add(fileIndex);
+                } else {
+                  state.arquivosSelecionadosIndices.delete(fileIndex);
+                }
+              }
             }
           });
         }
@@ -998,6 +1015,7 @@ export async function atualizarArquivosSilenciosamente(torrent) {
 
     state.arquivosFiltradosAtuais = obterArquivosVisiveis();
     renderizarTabelaArquivosVirtualizada();
+    atualizarResumoSelecao();
     atualizarHeaderTorrentSelecionado();
   } catch {
     // Ignora erros transitórios durante atualização silenciosa em background
@@ -1528,6 +1546,118 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
   }
 }
 
+// Função para recarregar manualmente o estado e prioridades dos arquivos do torrent selecionado
+export async function recarregarArquivosDoTorrentAtual() {
+  if (!state.torrentSelecionadoAtual) {
+    mostrarToast('Aviso', 'Nenhum torrent selecionado para atualizar.', 'info');
+    return;
+  }
+
+  const btnRecarregar = document.getElementById('btnRecarregarArquivosTorrent');
+  const refreshIcon = document.getElementById('refreshFilesIcon');
+  const btnText = document.getElementById('btnRecarregarArquivosText');
+
+  if (btnRecarregar) btnRecarregar.disabled = true;
+  if (refreshIcon) refreshIcon.classList.add('spin-animation');
+  if (btnText) btnText.textContent = 'Atualizando...';
+
+  try {
+    const torrent = state.torrentSelecionadoAtual;
+
+    if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
+      const resultados = await Promise.all(
+        torrent.torrentsList.map(async (t) => {
+          const { ok, data } = await apiService.getTorrentFiles(t.hash);
+          return {
+            torrent: t,
+            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
+          };
+        })
+      );
+
+      const novosPorOrigem = new Map();
+      resultados.forEach(({ torrent: t, files }) => {
+        files.forEach((f, idx) => {
+          const origIdx = typeof f.index === 'number' ? f.index : idx;
+          novosPorOrigem.set(`${t.hash}_${origIdx}`, f);
+        });
+      });
+
+      if (state.todosArquivosDoTorrent.length > 0) {
+        state.todosArquivosDoTorrent.forEach((item) => {
+          const key = `${item._originTorrentHash}_${item._originFileIndex}`;
+          const novo = novosPorOrigem.get(key);
+          if (novo) {
+            item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
+            item.size = novo.size || item.size;
+            item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+
+            if (typeof novo.priority === 'number') {
+              item.priority = novo.priority;
+              const globalIdx = item._fileIndex !== undefined ? item._fileIndex : item.index;
+              if (item.priority !== 0) {
+                state.arquivosSelecionadosIndices.add(globalIdx);
+              } else {
+                state.arquivosSelecionadosIndices.delete(globalIdx);
+              }
+            }
+          }
+        });
+      }
+    } else {
+      const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
+      if (ok && data.sucesso && Array.isArray(data.files)) {
+        const novosPorIdx = new Map();
+        data.files.forEach((f, idx) => {
+          const fileIndex = typeof f.index === 'number' ? f.index : idx;
+          novosPorIdx.set(fileIndex, f);
+        });
+
+        if (state.todosArquivosDoTorrent.length > 0) {
+          state.todosArquivosDoTorrent.forEach((item) => {
+            const fileIndex = item._fileIndex !== undefined ? item._fileIndex : item.index;
+            const novo = novosPorIdx.get(fileIndex);
+            if (novo) {
+              item.progress = typeof novo.progress === 'number' ? novo.progress : item.progress;
+              item.size = novo.size || item.size;
+              item.isAvailable = Boolean(novo.is_seed || novo.availability > 0 || item.isAvailable);
+
+              if (typeof novo.priority === 'number') {
+                item.priority = novo.priority;
+                if (item.priority !== 0) {
+                  state.arquivosSelecionadosIndices.add(fileIndex);
+                } else {
+                  state.arquivosSelecionadosIndices.delete(fileIndex);
+                }
+              }
+            }
+          });
+        }
+      } else {
+        mostrarToast('Erro ao Atualizar', data?.erro || 'Não foi possível carregar os arquivos.', 'error');
+        return;
+      }
+    }
+
+    state.arquivosFiltradosAtuais = obterArquivosVisiveis();
+    renderizarTabelaArquivosVirtualizada();
+    atualizarResumoSelecao();
+    atualizarHeaderTorrentSelecionado();
+
+    mostrarToast(
+      'Torrent Atualizado',
+      'Estado e prioridades dos arquivos atualizados a partir do qBittorrent.',
+      'success'
+    );
+  } catch (err) {
+    mostrarToast('Erro de Rede', `Falha ao atualizar torrent: ${err.message}`, 'error');
+  } finally {
+    if (btnRecarregar) btnRecarregar.disabled = false;
+    if (refreshIcon) refreshIcon.classList.remove('spin-animation');
+    if (btnText) btnText.textContent = 'Atualizar Torrent';
+  }
+}
+
 // ==========================================
 // 9. INICIALIZAÇÃO DE LISTENERS
 // ==========================================
@@ -1543,6 +1673,7 @@ export function initFilesManager() {
   const btnClearSearch = document.getElementById('btnClearSearch');
   const btnFecharArquivos = document.getElementById('btnFecharArquivos');
   const btnSalvarPrioridades = document.getElementById('btnSalvarPrioridades');
+  const btnRecarregarArquivosTorrent = document.getElementById('btnRecarregarArquivosTorrent');
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const headerRow = document.getElementById('filesTableHeaderRow');
 
@@ -1715,4 +1846,7 @@ export function initFilesManager() {
 
   // Salvar prioridades
   btnSalvarPrioridades?.addEventListener('click', salvarPrioridades);
+
+  // Recarregar arquivos do torrent a partir do qBittorrent
+  btnRecarregarArquivosTorrent?.addEventListener('click', recarregarArquivosDoTorrentAtual);
 }
