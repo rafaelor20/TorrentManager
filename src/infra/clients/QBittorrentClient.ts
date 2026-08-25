@@ -25,6 +25,23 @@ export class QBittorrentClient implements TorrentClient {
   private detalhesUltimaConexao: string = 'Não conectado';
   private infoConexao: QBittorrentInfo | null = null;
 
+  private readonly httpAgent = new http.Agent({
+    keepAlive: true,
+    maxSockets: 25,
+    maxFreeSockets: 10,
+    timeout: 30000,
+    keepAliveMsecs: 1000,
+  });
+
+  private readonly httpsAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 25,
+    maxFreeSockets: 10,
+    timeout: 30000,
+    keepAliveMsecs: 1000,
+    rejectUnauthorized: false,
+  });
+
   constructor(config?: Partial<TorrentClientConfig>) {
     this.config = {
       host: config?.host ?? 'localhost',
@@ -294,6 +311,8 @@ export class QBittorrentClient implements TorrentClient {
    * Lista os arquivos de um torrent específico
    */
   async listarArquivos(torrentHash: string): Promise<TorrentFile[]> {
+    if (!torrentHash) return [];
+
     if (!this.conectado) {
       const ok = await this.conectar().catch(() => false);
       if (!ok) return [];
@@ -301,24 +320,47 @@ export class QBittorrentClient implements TorrentClient {
 
     try {
       const urlBase = this.obterUrlBase();
+      const timeoutFiles = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const response = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
-        timeoutMs: 10000,
+        timeoutMs: timeoutFiles,
       });
 
       if (response.statusCode === 403 || response.statusCode === 401) {
         this.conectado = false;
-        await this.conectar().catch(() => {});
-        return this.listarArquivos(torrentHash);
+        const reconectado = await this.conectar().catch(() => false);
+        if (reconectado) {
+          const retryRes = await this.fazerRequisicao({
+            url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
+            method: 'GET',
+            timeoutMs: timeoutFiles,
+          });
+          if (retryRes.statusCode === 200 && retryRes.bodyText) {
+            return this.parsearArquivos(retryRes.bodyText);
+          }
+        }
+        return [];
       }
 
-      if (response.statusCode !== 200) {
-        throw new Error(`Falha ao obter arquivos do torrent (HTTP ${response.statusCode})`);
+      if (response.statusCode !== 200 || !response.bodyText) {
+        console.warn(`[QBittorrentClient] Resposta HTTP ${response.statusCode} ao listar arquivos de ${torrentHash}`);
+        return [];
       }
 
-      const files = JSON.parse(response.bodyText) as any[];
-      return files.map((f, idx) => {
+      return this.parsearArquivos(response.bodyText);
+    } catch (err: any) {
+      console.error(`[QBittorrentClient] Erro ao listar arquivos do torrent ${torrentHash}:`, err?.message || err);
+      return [];
+    }
+  }
+
+  private parsearArquivos(bodyText: string): TorrentFile[] {
+    try {
+      const rawList = JSON.parse(bodyText);
+      if (!Array.isArray(rawList)) return [];
+
+      return rawList.map((f: any, idx: number) => {
         const rawPath = String(f.name || '').replace(/\\/g, '/');
         const segments = rawPath.split('/');
         const fileName = segments[segments.length - 1] || rawPath;
@@ -328,17 +370,46 @@ export class QBittorrentClient implements TorrentClient {
           index: typeof f.index === 'number' ? f.index : idx,
           name: fileName,
           path: dirPath,
-          size: f.size || 0,
+          size: Number(f.size || 0),
           progress: typeof f.progress === 'number' ? f.progress : 0,
           priority: typeof f.priority === 'number' ? (f.priority as FilePriority) : FilePriority.NORMAL,
-          isAvailable: f.is_seed || f.availability > 0,
+          isAvailable: Boolean(f.is_seed || f.availability > 0),
           originalName: f.name,
         };
       });
-    } catch (err) {
-      console.error('[QBittorrentClient] Erro ao listar arquivos:', err);
-      throw err;
+    } catch (parseErr: any) {
+      console.error('[QBittorrentClient] Erro ao fazer parse de arquivos:', parseErr?.message || parseErr);
+      return [];
     }
+  }
+
+  /**
+   * Lista os arquivos de múltiplos torrents em lote com concorrência controlada
+   */
+  async listarArquivosEmLote(torrentHashes: string[]): Promise<Record<string, TorrentFile[]>> {
+    if (!torrentHashes || torrentHashes.length === 0) {
+      return {};
+    }
+
+    const resultado: Record<string, TorrentFile[]> = {};
+    const CONCURRENCY_LIMIT = 4;
+
+    for (let i = 0; i < torrentHashes.length; i += CONCURRENCY_LIMIT) {
+      const chunk = torrentHashes.slice(i, i + CONCURRENCY_LIMIT);
+      await Promise.all(
+        chunk.map(async (hash) => {
+          try {
+            const files = await this.listarArquivos(hash);
+            resultado[hash] = files || [];
+          } catch (err: any) {
+            console.warn(`[QBittorrentClient] Falha ao obter arquivos do hash ${hash}:`, err?.message || err);
+            resultado[hash] = [];
+          }
+        })
+      );
+    }
+
+    return resultado;
   }
 
   /**
@@ -645,6 +716,8 @@ export class QBittorrentClient implements TorrentClient {
         headers['Content-Length'] = Buffer.byteLength(opcoes.body).toString();
       }
 
+      const timeoutMs = opcoes.timeoutMs || this.config.timeoutMs || 30000;
+
       const reqOptions: http.RequestOptions = {
         protocol: parsedUrl.protocol,
         hostname: parsedUrl.hostname,
@@ -652,7 +725,8 @@ export class QBittorrentClient implements TorrentClient {
         path: `${parsedUrl.pathname}${parsedUrl.search}`,
         method: opcoes.method,
         headers,
-        timeout: opcoes.timeoutMs || 5000,
+        timeout: timeoutMs,
+        agent: isHttps ? this.httpsAgent : this.httpAgent,
         ...(isHttps ? { rejectUnauthorized: false } : {}),
       };
 
@@ -671,10 +745,14 @@ export class QBittorrentClient implements TorrentClient {
             bodyText: bodyData,
           });
         });
+
+        res.on('error', (err) => {
+          reject(err);
+        });
       });
 
       req.on('timeout', () => {
-        req.destroy(new Error(`Timeout de conexão (${opcoes.timeoutMs || 5000}ms)`));
+        req.destroy(new Error(`Timeout de conexão (${timeoutMs}ms)`));
       });
 
       req.on('error', (err) => {

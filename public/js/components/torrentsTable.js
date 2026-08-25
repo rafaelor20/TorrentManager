@@ -630,7 +630,12 @@ export function renderizarTabelaTorrents() {
 // 4. CARREGAMENTO E SINCRONIZAÇÃO DA API
 // ==========================================
 
+let isCarregandoTorrents = false;
+
 export async function carregarTorrents(isManual = false) {
+  if (isCarregandoTorrents && !isManual) return;
+  isCarregandoTorrents = true;
+
   const btnRecarregarTorrents = document.getElementById('btnRecarregarTorrents');
   const btnRecarregarText = document.getElementById('btnRecarregarText');
   const refreshIcon = document.getElementById('refreshIcon');
@@ -769,6 +774,7 @@ export async function carregarTorrents(isManual = false) {
       mostrarToast('Erro de Rede', err.message, 'error');
     }
   } finally {
+    isCarregandoTorrents = false;
     if (isManual && btnRecarregarTorrents && refreshIcon && btnRecarregarText) {
       setTimeout(() => {
         btnRecarregarTorrents.disabled = false;

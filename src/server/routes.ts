@@ -197,12 +197,70 @@ export function createRouter(torrentClient: TorrentClient): Router {
       res.json({
         sucesso: true,
         quantidade: files.length,
-        files,
+        files: files || [],
       });
     } catch (err: any) {
-      res.status(500).json({
+      console.warn(`[Routes] Aviso ao listar arquivos do hash ${req.params.hash}:`, err?.message || err);
+      res.json({
         sucesso: false,
         erro: err?.message || 'Erro ao listar arquivos',
+        quantidade: 0,
+        files: [],
+      });
+    }
+  });
+
+  // Obter arquivos de múltiplos torrents em lote de forma otimizada
+  router.post('/torrents/batch-files', async (req: Request, res: Response) => {
+    try {
+      const { hashes } = req.body || {};
+      if (!Array.isArray(hashes) || hashes.length === 0) {
+        return res.json({
+          sucesso: true,
+          filesByHash: {},
+        });
+      }
+
+      let filesByHash: Record<string, any[]> = {};
+
+      if (torrentClient.listarArquivosEmLote) {
+        try {
+          filesByHash = await torrentClient.listarArquivosEmLote(hashes.map(String));
+        } catch (err: any) {
+          console.warn('[Routes] Falha no método listarArquivosEmLote, usando fallback:', err?.message || err);
+        }
+      }
+
+      // Se filesByHash ainda estiver vazio, preenche com fallback seguro
+      if (!filesByHash || Object.keys(filesByHash).length === 0) {
+        filesByHash = {};
+        const CONCURRENCY_LIMIT = 4;
+        for (let i = 0; i < hashes.length; i += CONCURRENCY_LIMIT) {
+          const chunk = hashes.slice(i, i + CONCURRENCY_LIMIT);
+          await Promise.all(
+            chunk.map(async (h: string) => {
+              try {
+                const files = await torrentClient.listarArquivos(String(h));
+                filesByHash[h] = files || [];
+              } catch (err: any) {
+                console.warn(`[Routes] Erro ao listar arquivos do hash ${h}:`, err?.message || err);
+                filesByHash[h] = [];
+              }
+            })
+          );
+        }
+      }
+
+      res.json({
+        sucesso: true,
+        filesByHash,
+      });
+    } catch (err: any) {
+      console.error('[Routes] Erro em batch-files:', err?.message || err);
+      res.json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao obter arquivos em lote',
+        filesByHash: {},
       });
     }
   });

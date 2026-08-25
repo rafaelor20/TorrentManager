@@ -84,6 +84,14 @@ export class MockTorrentClient implements TorrentClient {
     return [...this.mockArquivos];
   }
 
+  async listarArquivosEmLote(torrentHashes: string[]): Promise<Record<string, TorrentFile[]>> {
+    const res: Record<string, TorrentFile[]> = {};
+    for (const hash of torrentHashes) {
+      res[hash] = [...this.mockArquivos];
+    }
+    return res;
+  }
+
   async alterarPrioridades(
     _torrentHash: string,
     fileIndices: number[],

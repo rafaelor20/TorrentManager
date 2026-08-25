@@ -69,6 +69,12 @@ export interface TorrentClient {
   listarArquivos(torrentHash: string): Promise<TorrentFile[]>;
 
   /**
+   * Lista os arquivos de múltiplos torrents em lote
+   * @param torrentHashes Lista de hashes de torrents
+   */
+  listarArquivosEmLote?(torrentHashes: string[]): Promise<Record<string, TorrentFile[]>>;
+
+  /**
    * Altera a prioridade de download de arquivos dentro de um torrent
    * @param torrentHash Identificador hash do torrent
    * @param fileIndices Índices dos arquivos dentro do torrent

@@ -935,22 +935,54 @@ export function atualizarHeaderTorrentSelecionado() {
   }
 }
 
+export async function executarComConcorrencia(itens, limite = 5, fn = async () => {}) {
+  if (!Array.isArray(itens) || itens.length === 0) return [];
+  const resultados = [];
+  const emExecucao = [];
+
+  for (const item of itens) {
+    const p = Promise.resolve().then(() => fn(item));
+    resultados.push(p);
+
+    if (limite <= itens.length) {
+      const e = p.then(() => emExecucao.splice(emExecucao.indexOf(e), 1)).catch(() => emExecucao.splice(emExecucao.indexOf(e), 1));
+      emExecucao.push(e);
+      if (emExecucao.length >= limite) {
+        await Promise.race(emExecucao);
+      }
+    }
+  }
+
+  return Promise.all(resultados);
+}
+
+let isAtualizandoSilenciosamente = false;
+
 export async function atualizarArquivosSilenciosamente(torrent) {
   if (!torrent || !torrent.hash) return;
+  if (isAtualizandoSilenciosamente) return;
+  if (!state.todosArquivosDoTorrent || state.todosArquivosDoTorrent.length === 0) return;
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   if (!torrentFilesSection || torrentFilesSection.style.display === 'none') return;
 
+  isAtualizandoSilenciosamente = true;
   try {
     if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
-      const resultados = await Promise.all(
-        torrent.torrentsList.map(async (t) => {
-          const { ok, data } = await apiService.getTorrentFiles(t.hash);
-          return {
-            torrent: t,
-            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
-          };
-        })
-      );
+      const hashes = torrent.torrentsList.map((t) => t.hash);
+      const { ok, data } = await apiService.getBatchTorrentFiles(hashes);
+      const filesByHash = (ok && data?.sucesso && data?.filesByHash) ? data.filesByHash : {};
+
+      const resultados = await executarComConcorrencia(torrent.torrentsList, 5, async (t) => {
+        let files = filesByHash[t.hash];
+        if (!files) {
+          const resInd = await apiService.getTorrentFiles(t.hash);
+          files = resInd.ok && resInd.data?.sucesso && Array.isArray(resInd.data.files) ? resInd.data.files : [];
+        }
+        return {
+          torrent: t,
+          files: Array.isArray(files) ? files : [],
+        };
+      });
 
       const novosPorOrigem = new Map();
       resultados.forEach(({ torrent: t, files }) => {
@@ -983,7 +1015,7 @@ export async function atualizarArquivosSilenciosamente(torrent) {
       }
     } else {
       const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
-      if (ok && data.sucesso && Array.isArray(data.files)) {
+      if (ok && data?.sucesso && Array.isArray(data.files)) {
         const novosPorIdx = new Map();
         data.files.forEach((f, idx) => {
           const fileIndex = typeof f.index === 'number' ? f.index : idx;
@@ -1019,6 +1051,8 @@ export async function atualizarArquivosSilenciosamente(torrent) {
     atualizarHeaderTorrentSelecionado();
   } catch {
     // Ignora erros transitórios durante atualização silenciosa em background
+  } finally {
+    isAtualizandoSilenciosamente = false;
   }
 }
 
@@ -1074,16 +1108,21 @@ export async function selecionarTorrent(torrent) {
 
   try {
     if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
-      // Carrega arquivos de todos os torrents membros da categoria em paralelo
-      const resultados = await Promise.all(
-        torrent.torrentsList.map(async (t) => {
-          const { ok, data } = await apiService.getTorrentFiles(t.hash);
-          return {
-            torrent: t,
-            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
-          };
-        })
-      );
+      const hashes = torrent.torrentsList.map((t) => t.hash);
+      const { ok, data } = await apiService.getBatchTorrentFiles(hashes);
+      const filesByHash = (ok && data?.sucesso && data?.filesByHash) ? data.filesByHash : {};
+
+      const resultados = await executarComConcorrencia(torrent.torrentsList, 5, async (t) => {
+        let files = filesByHash[t.hash];
+        if (!files) {
+          const resInd = await apiService.getTorrentFiles(t.hash);
+          files = resInd.ok && resInd.data?.sucesso && Array.isArray(resInd.data.files) ? resInd.data.files : [];
+        }
+        return {
+          torrent: t,
+          files: Array.isArray(files) ? files : [],
+        };
+      });
 
       let todosArquivos = [];
       let globalIndex = 0;
@@ -1143,7 +1182,7 @@ export async function selecionarTorrent(torrent) {
 
     const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
 
-    if (ok && data.sucesso) {
+    if (ok && data?.sucesso) {
       state.todosArquivosDoTorrent = data.files || [];
 
       // Indexação instantânea em O(N)
@@ -1424,19 +1463,17 @@ export async function salvarPrioridades() {
       let totalBytesLiberados = 0;
       let algumErro = false;
 
-      await Promise.all(
-        Array.from(porTorrent.entries()).map(async ([hash, { marcados, desmarcados }]) => {
-          const { ok, data } = await enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados);
-          if (ok && data.sucesso) {
-            if (data.detalhes?.arquivosApagados) {
-              totalApagados += (data.detalhes.arquivosApagados || 0);
-              totalBytesLiberados += (data.detalhes.espacoLiberadoBytes || 0);
-            }
-          } else {
-            algumErro = true;
+      await executarComConcorrencia(Array.from(porTorrent.entries()), 3, async ([hash, { marcados, desmarcados }]) => {
+        const { ok, data } = await enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados);
+        if (ok && data?.sucesso) {
+          if (data.detalhes?.arquivosApagados) {
+            totalApagados += (data.detalhes.arquivosApagados || 0);
+            totalBytesLiberados += (data.detalhes.espacoLiberadoBytes || 0);
           }
-        })
-      );
+        } else {
+          algumErro = true;
+        }
+      });
 
       if (!algumErro) {
         let msg = `Prioridades sincronizadas para todos os ${porTorrent.size} torrents da categoria! (${marcadosIndices.length} marcados, ${desmarcadosIndices.length} desativados).`;
@@ -1456,7 +1493,7 @@ export async function salvarPrioridades() {
     const hash = state.torrentSelecionadoAtual.hash;
     const { ok, data } = await enviarPrioridadesEmLotes(hash, marcadosIndices, desmarcadosIndices, apagarDesativados);
 
-    if (ok && data.sucesso) {
+    if (ok && data?.sucesso) {
       if (apagarDesativados && data.detalhes?.arquivosApagados !== undefined) {
         const qtdApagados = data.detalhes.arquivosApagados;
         const espacoStr = formatarTamanho(data.detalhes.espacoLiberadoBytes || 0);
@@ -1488,7 +1525,7 @@ export async function salvarPrioridades() {
 
       await selecionarTorrent(state.torrentSelecionadoAtual);
     } else {
-      const msgErro = data.erro || 'Falha ao aplicar prioridades no qBittorrent.';
+      const msgErro = data?.erro || 'Falha ao aplicar prioridades no qBittorrent.';
       mostrarToast('Erro ao Aplicar', msgErro, 'error');
       setFeedback('error', 'Falha ao aplicar prioridades', msgErro);
     }
@@ -1531,7 +1568,7 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
 
     const { ok, data } = await apiService.openFileFolder(hash, originFileIndex);
 
-    if (ok && data.sucesso) {
+    if (ok && data?.sucesso) {
       mostrarToast(
         'Pasta Aberta',
         `A pasta de "${nomeArquivo}" foi aberta com sucesso no Explorador de Arquivos!`,
@@ -1565,15 +1602,21 @@ export async function recarregarArquivosDoTorrentAtual() {
     const torrent = state.torrentSelecionadoAtual;
 
     if (torrent.isCategoryVirtual && Array.isArray(torrent.torrentsList)) {
-      const resultados = await Promise.all(
-        torrent.torrentsList.map(async (t) => {
-          const { ok, data } = await apiService.getTorrentFiles(t.hash);
-          return {
-            torrent: t,
-            files: ok && data.sucesso && Array.isArray(data.files) ? data.files : [],
-          };
-        })
-      );
+      const hashes = torrent.torrentsList.map((t) => t.hash);
+      const { ok, data } = await apiService.getBatchTorrentFiles(hashes);
+      const filesByHash = (ok && data?.sucesso && data?.filesByHash) ? data.filesByHash : {};
+
+      const resultados = await executarComConcorrencia(torrent.torrentsList, 5, async (t) => {
+        let files = filesByHash[t.hash];
+        if (!files) {
+          const resInd = await apiService.getTorrentFiles(t.hash);
+          files = resInd.ok && resInd.data?.sucesso && Array.isArray(resInd.data.files) ? resInd.data.files : [];
+        }
+        return {
+          torrent: t,
+          files: Array.isArray(files) ? files : [],
+        };
+      });
 
       const novosPorOrigem = new Map();
       resultados.forEach(({ torrent: t, files }) => {
@@ -1606,7 +1649,7 @@ export async function recarregarArquivosDoTorrentAtual() {
       }
     } else {
       const { ok, data } = await apiService.getTorrentFiles(torrent.hash);
-      if (ok && data.sucesso && Array.isArray(data.files)) {
+      if (ok && data?.sucesso && Array.isArray(data.files)) {
         const novosPorIdx = new Map();
         data.files.forEach((f, idx) => {
           const fileIndex = typeof f.index === 'number' ? f.index : idx;
