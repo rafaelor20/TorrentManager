@@ -6,7 +6,7 @@ export type SupportedClientType = 'qbittorrent' | 'mock' | string;
 
 export class TorrentClientFactory {
   /**
-   * Cria uma instância de cliente BitTorrent a partir da camada de provedores
+   * Creates a BitTorrent client instance from the provider layer
    */
   static criarCliente(
     tipo: SupportedClientType = 'qbittorrent',
@@ -16,7 +16,7 @@ export class TorrentClientFactory {
   }
 
   /**
-   * Retorna os nomes e identificadores dos clientes suportados
+   * Returns names and identifiers of supported clients
    */
   static obterClientesSuportados(): string[] {
     return TorrentClientRegistry.listarIdsProvedores();

@@ -1,5 +1,5 @@
 /**
- * Estado compartilhado da aplicação em memória
+ * Shared in-memory application state
  */
 
 export const state = {
@@ -12,29 +12,29 @@ export const state = {
   timerAutoRefresh: null,
   termoBuscaAtual: '',
 
-  // Ordenação de arquivos
+  // File sorting
   sortColumn: 'index', // 'check' | 'index' | 'name' | 'path' | 'size' | 'priority' | 'progress'
   sortDirection: 'asc', // 'asc' | 'desc'
 
-  // Filtro de status dos arquivos ('all' | 'active' | 'inactive')
+  // File status filter ('all' | 'active' | 'inactive')
   filtroStatusArquivo: 'all',
 
-  // Lista de torrents carregados, filtros, categorias e ordenação
+  // List of loaded torrents, filters, categories, and sorting
   todosTorrents: [],
   torrentsFiltrados: [],
   filtroTorrentsStatus: 'all', // 'all' | 'completed' | 'downloading' | 'paused'
-  filtroTorrentsCategoria: 'all', // 'all' | '__none__' (sem categoria) | '<nome_categoria>'
-  agruparPorCategoria: false, // boolean: visualização agrupada em blocos por categoria
-  modoConsolidadoCategoria: false, // boolean: funde os torrents de cada categoria em 1 único torrent virtual consolidado
-  categoriasDisponiveis: [], // lista de categorias únicas encontradas
+  filtroTorrentsCategoria: 'all', // 'all' | '__none__' (uncategorized) | '<category_name>'
+  agruparPorCategoria: false, // boolean: grouped view in blocks by category
+  modoConsolidadoCategoria: false, // boolean: merges torrents of each category into a single consolidated virtual torrent
+  categoriasDisponiveis: [], // list of unique categories found
   termoBuscaTorrents: '',
   torrentSortColumn: 'name', // 'name' | 'category' | 'status' | 'progress' | 'size' | 'speeds'
   torrentSortDirection: 'asc', // 'asc' | 'desc'
 
-  // Ordem, larguras e visibilidade das colunas da tabela de arquivos
+  // Order, widths, and visibility of files table columns
   columnOrder: ['check', 'index', 'name', 'path', 'size', 'priority', 'progress'],
   columnWidths: {},
-  hiddenColumns: new Set(), // Conjunto com os IDs das colunas ocultas
+  hiddenColumns: new Set(), // Set containing IDs of hidden columns
 };
 
 

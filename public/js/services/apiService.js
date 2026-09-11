@@ -1,5 +1,5 @@
 /**
- * Serviço de comunicação com as APIs do backend
+ * Backend API communication service
  */
 
 export const apiService = {

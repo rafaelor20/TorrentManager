@@ -1,5 +1,5 @@
 /**
- * Componente de Painel de Diagnóstico e Feedback de Conexão
+ * Diagnostic Panel and Connection Feedback Component
  */
 
 import { state } from '../state.js';
@@ -60,7 +60,7 @@ export function atualizarStatusDiagnostico(data) {
     activeClientName.textContent = data.clienteAtivo;
   }
 
-  // Atualiza Endpoint exibido
+  // Update displayed Endpoint
   if (infoEndpoint) {
     if (info.urlBase) {
       infoEndpoint.textContent = info.urlBase;
@@ -71,7 +71,7 @@ export function atualizarStatusDiagnostico(data) {
   }
 
   if (isConectado) {
-    // Badges do Topo
+    // Header Badges
     if (systemStatusBadge) systemStatusBadge.className = 'badge status-pill active';
     if (systemStatusText) {
       systemStatusText.textContent = info.appVersion 
@@ -79,7 +79,7 @@ export function atualizarStatusDiagnostico(data) {
         : t('status_connected');
     }
 
-    // Linhas do Painel de Diagnóstico
+    // Diagnostic Panel Rows
     if (infoAppVersion) infoAppVersion.textContent = info.appVersion || 'v5.x';
     if (infoWebApiVersion) infoWebApiVersion.textContent = info.webApiVersion || 'v2.x';
 
@@ -92,7 +92,7 @@ export function atualizarStatusDiagnostico(data) {
     if (btnDesconectar) btnDesconectar.style.display = 'inline-flex';
     if (btnConectarText) btnConectarText.textContent = t('btn_quick_reconnect');
 
-    // Banner de Feedback em destaque
+    // Featured Feedback Banner
     const detalheMsg = statusConexao.detalhes || 
       (info.appVersion 
         ? `${t('status_connected')} ${clienteNome} ${info.appVersion} (Web API v${info.webApiVersion || '2.x'}) ${info.urlBase || 'localhost'}`
@@ -100,11 +100,11 @@ export function atualizarStatusDiagnostico(data) {
 
     setFeedback('success', t('diag_banner_connected_title', { client: clienteNome }), detalheMsg);
   } else {
-    // Badges do Topo
+    // Header Badges
     if (systemStatusBadge) systemStatusBadge.className = 'badge status-pill offline';
     if (systemStatusText) systemStatusText.textContent = t('status_disconnected');
 
-    // Linhas do Painel de Diagnóstico
+    // Diagnostic Panel Rows
     if (infoAppVersion) infoAppVersion.textContent = '—';
     if (infoWebApiVersion) infoWebApiVersion.textContent = '—';
     if (infoCookieStatus) {

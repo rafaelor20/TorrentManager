@@ -10,42 +10,42 @@ export interface TorrentClientProviderInfo {
 }
 
 /**
- * Interface que define o contrato para Provedores / Plugins de clientes BitTorrent.
- * Cada implementação (qBittorrent, Transmission, Deluge, etc.) deve fornecer um provedor correspondente.
+ * Interface that defines the contract for BitTorrent client Providers / Plugins.
+ * Each implementation (qBittorrent, Transmission, Deluge, etc.) must provide a corresponding provider.
  */
 export interface TorrentClientProvider {
   /**
-   * Identificador único do provedor (ex: 'qbittorrent', 'transmission', 'deluge')
+   * Unique provider identifier (e.g. 'qbittorrent', 'transmission', 'deluge')
    */
   readonly id: string;
 
   /**
-   * Nome legível do provedor para exibição (ex: 'qBittorrent', 'Transmission')
+   * Human-readable provider display name (e.g. 'qBittorrent', 'Transmission')
    */
   readonly nome: string;
 
   /**
-   * Descrição breve do provedor e da tecnologia suportada
+   * Brief description of provider and supported technology
    */
   readonly descricao?: string;
 
   /**
-   * Versão do plugin/provedor
+   * Plugin/provider version
    */
   readonly versao?: string;
 
   /**
-   * Cria uma nova instância de TorrentClient com as configurações fornecidas
+   * Creates a new TorrentClient instance with provided configuration
    */
   criarCliente(config?: Partial<TorrentClientConfig>): TorrentClient;
 
   /**
-   * Retorna os metadados descritivos do provedor
+   * Returns descriptive metadata for the provider
    */
   obterMetadados(): TorrentClientProviderInfo;
 
   /**
-   * Valida se uma dada configuração atende aos requisitos mínimos do provedor
+   * Validates whether a given configuration meets the provider's minimum requirements
    */
   validarConfig?(config: Partial<TorrentClientConfig>): boolean;
 }

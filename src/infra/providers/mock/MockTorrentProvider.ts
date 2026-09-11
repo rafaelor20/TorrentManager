@@ -5,7 +5,7 @@ import { TorrentClientConfig } from '../../../domain/models/TorrentClientConfig.
 import { TorrentClientProvider, TorrentClientProviderInfo } from '../../../domain/providers/TorrentClientProvider.js';
 
 /**
- * Cliente demonstrativo em memória que comprova a arquitetura de plugins e extensibilidade
+ * Demonstrative in-memory client that proves plugin architecture and extensibility
  */
 export class MockTorrentClient implements TorrentClient {
   private conectado: boolean = false;
@@ -163,12 +163,12 @@ export class MockTorrentClient implements TorrentClient {
 }
 
 /**
- * Provedor do MockTorrentClient
+ * MockTorrentClient Provider
  */
 export class MockTorrentProvider implements TorrentClientProvider {
   readonly id = 'mock';
   readonly nome = 'Mock Client';
-  readonly descricao = 'Provedor demonstrativo em memória para testes e validação de plugins.';
+  readonly descricao = 'In-memory demonstrative provider for testing and plugin validation.';
   readonly versao = '1.0.0';
 
   criarCliente(_config?: Partial<TorrentClientConfig>): TorrentClient {

@@ -12,29 +12,29 @@ const BLOB_FILE = path.join(DIST_DIR, 'sea-prep.blob');
 const SEA_CONFIG = path.join(ROOT_DIR, 'sea-config.json');
 
 console.log('================================================================');
-console.log('       COMPILAÇÃO DE EXECUTÁVEL NATIVO WINDOWS (.EXE)           ');
+console.log('       WINDOWS NATIVE EXECUTABLE BUILD (.EXE)                   ');
 console.log('       TorrentManager • Single Executable Application (SEA)      ');
 console.log('================================================================\n');
 
-// 1. Criar pastas necessárias
+// 1. Create necessary directories
 [DIST_DIR, RELEASE_DIR, BIN_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// 2. Compilar TypeScript
-console.log('Passo 1/5: Compilando TypeScript (tsc)...');
+// 2. Compile TypeScript
+console.log('Step 1/5: Compiling TypeScript (tsc)...');
 execSync('npx tsc', { stdio: 'inherit', cwd: ROOT_DIR });
-console.log('✓ TypeScript compilado com sucesso.\n');
+console.log('✓ TypeScript compiled successfully.\n');
 
-// 3. Gerar Bundle com esbuild
-console.log('Passo 2/5: Empacotando código com esbuild em bundle único...');
+// 3. Generate bundle with esbuild
+console.log('Step 2/5: Bundling code with esbuild into a single file...');
 execSync(
   `npx esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile="${BUNDLE_FILE}"`,
   { stdio: 'inherit', cwd: ROOT_DIR }
 );
-console.log(`✓ Bundle CJS gerado: ${BUNDLE_FILE}\n`);
+console.log(`✓ CJS Bundle generated: ${BUNDLE_FILE}\n`);
 
-// 4. Preparar runner e binário base do Node.js 20 LTS
+// 4. Prepare runner and base binary for Node.js 20 LTS
 const targetNodeVersion = process.env.WIN_NODE_VERSION || 'v20.18.0';
 const versionedWinExe = path.join(BIN_DIR, `node-win-x64-${targetNodeVersion}.exe`);
 const versionedLinuxRunner = path.join(BIN_DIR, `node-linux-x64-${targetNodeVersion}`);
@@ -42,7 +42,7 @@ const versionedLinuxRunner = path.join(BIN_DIR, `node-linux-x64-${targetNodeVers
 let seaGeneratorNode = 'node';
 if (process.platform === 'linux') {
   if (!fs.existsSync(versionedLinuxRunner)) {
-    console.log(`Preparando runner Node.js ${targetNodeVersion} para geração do Blob SEA...`);
+    console.log(`Preparing Node.js ${targetNodeVersion} runner for SEA Blob generation...`);
     if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
     execSync(
       `curl -sL "https://nodejs.org/dist/${targetNodeVersion}/node-${targetNodeVersion}-linux-x64.tar.xz" | tar -xJ -C "${BIN_DIR}" --strip-components=2 "node-${targetNodeVersion}-linux-x64/bin/node"`,
@@ -54,7 +54,7 @@ if (process.platform === 'linux') {
   seaGeneratorNode = `"${versionedLinuxRunner}"`;
 }
 
-console.log(`Passo 3/5: Gerando Blob SEA compatível com Node.js ${targetNodeVersion}...`);
+console.log(`Step 3/5: Generating SEA Blob compatible with Node.js ${targetNodeVersion}...`);
 fs.writeFileSync(
   SEA_CONFIG,
   JSON.stringify({
@@ -71,18 +71,18 @@ execSync(`${seaGeneratorNode} --experimental-sea-config "${SEA_CONFIG}"`, {
   stdio: 'inherit',
   cwd: ROOT_DIR,
 });
-console.log(`✓ Blob binário gerado: ${BLOB_FILE}\n`);
+console.log(`✓ Binary Blob generated: ${BLOB_FILE}\n`);
 
-console.log(`Passo 4/5: Preparando binário base Windows x64 (${targetNodeVersion})...`);
+console.log(`Step 4/5: Preparing Windows x64 base binary (${targetNodeVersion})...`);
 if (!fs.existsSync(versionedWinExe)) {
-  console.log(`Baixando executável base oficial do Node.js ${targetNodeVersion} para Windows x64...`);
+  console.log(`Downloading official Node.js ${targetNodeVersion} base executable for Windows x64...`);
   const downloadCmd = `curl -sL "https://nodejs.org/dist/${targetNodeVersion}/win-x64/node.exe" -o "${versionedWinExe}"`;
   execSync(downloadCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 }
-console.log(`✓ Executável base pronto em: ${versionedWinExe}\n`);
+console.log(`✓ Base executable ready at: ${versionedWinExe}\n`);
 
-// 6. Preparar diretório de montagem (staging) isolado
-console.log('Preparando arquivos do pacote na pasta de montagem...');
+// 6. Prepare isolated staging directory
+console.log('Preparing package files in staging folder...');
 const STAGING_DIR = path.join(ROOT_DIR, '.staging-win');
 if (fs.existsSync(STAGING_DIR)) fs.rmSync(STAGING_DIR, { recursive: true, force: true });
 fs.mkdirSync(STAGING_DIR, { recursive: true });
@@ -90,8 +90,8 @@ fs.mkdirSync(STAGING_DIR, { recursive: true });
 const FINAL_WIN_EXE = path.join(STAGING_DIR, 'TorrentManager.exe');
 fs.copyFileSync(versionedWinExe, FINAL_WIN_EXE);
 
-// 7. Injetar Blob no executável via postject
-console.log('Passo 5/5: Injetando código e recursos no TorrentManager.exe via postject...');
+// 7. Inject Blob into executable via postject
+console.log('Step 5/5: Injecting code and assets into TorrentManager.exe via postject...');
 const postjectCmd = [
   'npx postject',
   `"${FINAL_WIN_EXE}"`,
@@ -101,35 +101,35 @@ const postjectCmd = [
 ].join(' ');
 
 execSync(postjectCmd, { stdio: 'inherit', cwd: ROOT_DIR });
-console.log(`✓ Executável Windows criado com sucesso: ${FINAL_WIN_EXE}\n`);
+console.log(`✓ Windows executable successfully created: ${FINAL_WIN_EXE}\n`);
 
-// 8. Copiar recursos auxiliares para staging
+// 8. Copy auxiliary resources to staging
 const stagingPublic = path.join(STAGING_DIR, 'public');
 const stagingData = path.join(STAGING_DIR, 'data');
 fs.mkdirSync(stagingPublic, { recursive: true });
 fs.mkdirSync(stagingData, { recursive: true });
 
-// Copiar pasta public/ (recursivo)
+// Copy public/ folder (recursive)
 const publicSrc = path.join(ROOT_DIR, 'public');
 if (fs.existsSync(publicSrc)) {
   fs.cpSync(publicSrc, stagingPublic, { recursive: true });
-  console.log(`✓ Interface web copiada para o pacote.`);
+  console.log(`✓ Web interface copied to package.`);
 }
 
-// Copiar .env.example
+// Copy .env.example
 const envExampleSrc = path.join(ROOT_DIR, '.env.example');
 const envExampleDst = path.join(STAGING_DIR, '.env.example');
 if (fs.existsSync(envExampleSrc)) {
   fs.copyFileSync(envExampleSrc, envExampleDst);
-  console.log(`✓ Arquivo de exemplo .env.example copiado.`);
+  console.log(`✓ Example .env.example file copied.`);
 }
 
-// Copiar ou criar config.json inicial
+// Copy or create initial config.json
 const configSrc = path.join(ROOT_DIR, 'data/config.json');
 const configDst = path.join(stagingData, 'config.json');
 if (fs.existsSync(configSrc)) {
   fs.copyFileSync(configSrc, configDst);
-  console.log(`✓ Configuração persistente copiada.`);
+  console.log(`✓ Persistent configuration copied.`);
 } else {
   const defaultConf = {
     server: { port: 3000, host: '0.0.0.0' },
@@ -146,7 +146,7 @@ if (fs.existsSync(configSrc)) {
   fs.writeFileSync(configDst, JSON.stringify(defaultConf, null, 2), 'utf-8');
 }
 
-// Criar script iniciar.bat para Windows com detecção inteligente de porta no .env
+// Create iniciar.bat script for Windows with smart port detection from .env
 const batContent = `@echo off
 title TorrentManager - Servidor BitTorrent Unificado
 echo ========================================================
@@ -175,7 +175,7 @@ pause
 `;
 fs.writeFileSync(path.join(STAGING_DIR, 'iniciar.bat'), batContent, 'utf-8');
 
-// Criar README com instruções
+// Create README with instructions
 const readmeContent = `================================================================
 TORRENT MANAGER — EXECUTÁVEL WINDOWS STANDALONE (.EXE)
 ================================================================
@@ -207,8 +207,8 @@ REQUISITOS:
 `;
 fs.writeFileSync(path.join(STAGING_DIR, 'LEIAME.txt'), readmeContent, 'utf-8');
 
-// 9. Gerar arquivo compactado ZIP
-console.log('Compactando pacote de distribuição para .zip...');
+// 9. Generate ZIP archive
+console.log('Compressing distribution package to .zip...');
 const zipOutputFile = path.join(RELEASE_DIR, 'TorrentManager-Windows-x64.zip');
 
 const output = fs.createWriteStream(zipOutputFile);
@@ -224,10 +224,10 @@ const closePromise = new Promise((resolve, reject) => {
 archive.directory(STAGING_DIR, false);
 await archive.finalize();
 await closePromise;
-console.log(`✓ Pacote compactado gerado: release/TorrentManager-Windows-x64.zip\n`);
+console.log(`✓ Compressed package generated: release/TorrentManager-Windows-x64.zip\n`);
 
-// 10. Limpeza da pasta staging e dist/
-console.log('Realizando limpeza de arquivos intermediários...');
+// 10. Clean up staging and dist/ folders
+console.log('Cleaning up intermediate files...');
 [DIST_DIR, STAGING_DIR].forEach(dir => {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -238,6 +238,6 @@ const stats = fs.statSync(zipOutputFile);
 const tamanhoMB = (stats.size / (1024 * 1024)).toFixed(1);
 
 console.log('\n================================================================');
-console.log('✓ BUILD WINDOWS CONCLUÍDO COM SUCESSO!');
-console.log(`✓ Pacote final: release/TorrentManager-Windows-x64.zip (${tamanhoMB} MB)`);
+console.log('✓ WINDOWS BUILD COMPLETED SUCCESSFULLY!');
+console.log(`✓ Final package: release/TorrentManager-Windows-x64.zip (${tamanhoMB} MB)`);
 console.log('================================================================\n');

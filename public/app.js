@@ -1,6 +1,6 @@
 /**
  * TorrentManager — Frontend Entry Point
- * Ponto de entrada modular da interface web
+ * Modular web interface entry point
  */
 
 import { apiService } from './js/services/apiService.js';
@@ -83,7 +83,7 @@ export function initLanguageSelector() {
   });
 }
 
-// Carrega configurações persistidas e status geral da aplicação
+// Load persisted settings and general application status
 export async function carregarDados() {
   const systemStatusBadge = document.getElementById('systemStatusBadge');
   const systemStatusText = document.getElementById('systemStatusText');
@@ -115,7 +115,7 @@ export async function carregarDados() {
       activeClientName.textContent = data.clienteAtivo;
     }
 
-    // Preenche campos do formulário com as configurações salvas
+    // Populate form fields with saved settings
     if (data.config) {
       if (inputHost && !inputHost.value) inputHost.value = data.config.host || 'localhost';
       if (inputPort && !inputPort.value) inputPort.value = data.config.port || 8877;
@@ -139,13 +139,13 @@ export async function carregarDados() {
   }
 }
 
-// Inicialização da aplicação após o carregamento do DOM
+// Application initialization after DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
-  // Inicializa sistema de internacionalização
+  // Initialize internationalization system
   initI18n();
   initLanguageSelector();
 
-  // Inicializa componentes e listeners
+  // Initialize components and event listeners
   initToast();
   initTorrentsTable();
   initFilesManager();
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   initQuickConnectionForm();
 
-  // Carregamento inicial de dados e lista de torrents
+  // Initial data and torrent list loading
   await carregarDados();
   await carregarTorrents();
 });

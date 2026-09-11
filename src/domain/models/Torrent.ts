@@ -13,7 +13,7 @@ export interface Torrent {
   hash: string;
   name: string;
   size: number;
-  progress: number; // 0.0 a 1.0 ou 0 a 100%
+  progress: number; // 0.0 to 1.0 or 0 to 100%
   status: TorrentState;
   downloadSpeed?: number;
   uploadSpeed?: number;

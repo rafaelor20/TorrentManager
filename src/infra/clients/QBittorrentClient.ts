@@ -104,7 +104,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Conecta e autentica na Web API do qBittorrent via HTTP ou HTTPS
+   * Connects and authenticates to qBittorrent Web API via HTTP or HTTPS
    */
   async conectar(configOverride?: TorrentClientConfig): Promise<boolean> {
     const inicio = Date.now();
@@ -115,7 +115,7 @@ export class QBittorrentClient implements TorrentClient {
     const urlBase = this.obterUrlBase();
 
     try {
-      // 1. Enviar requisição de autenticação para /api/v2/auth/login
+      // 1. Send authentication request to /api/v2/auth/login
       const formParams = new URLSearchParams();
       if (this.config.username !== undefined) {
         formParams.append('username', this.config.username);
@@ -136,7 +136,7 @@ export class QBittorrentClient implements TorrentClient {
 
       const respostaTexto = resLogin.bodyText ? resLogin.bodyText.trim() : '';
 
-      // Verifica se o qBittorrent retornou erro explícito (ex: "Fails.", IP banido ou 403/401)
+      // Check if qBittorrent returned explicit error (e.g., "Fails.", banned IP or 403/401)
       if (respostaTexto.includes('Fails.') || (resLogin.statusCode === 403 && respostaTexto.includes('banido'))) {
         this.conectado = false;
         this.cookieAutenticacao = null;
@@ -147,7 +147,7 @@ export class QBittorrentClient implements TorrentClient {
         throw new Error(this.detalhesUltimaConexao);
       }
 
-      // No qBittorrent, tanto 200 OK (com "Ok.") quanto 204 No Content significam autenticação bem sucedida!
+      // In qBittorrent, both 200 OK (with "Ok.") and 204 No Content indicate successful authentication!
       const isLoginOk = resLogin.statusCode === 200 || resLogin.statusCode === 204;
 
       if (!isLoginOk && resLogin.statusCode !== 403) {
@@ -158,14 +158,14 @@ export class QBittorrentClient implements TorrentClient {
         throw new Error(this.detalhesUltimaConexao);
       }
 
-      // 2. Extrai e armazena os cookies retornados (ex: QBT_SID_<port>=... ou SID=...)
+      // 2. Extract and store returned cookies (e.g. QBT_SID_<port>=... or SID=...)
       const setCookieHeader = resLogin.headers['set-cookie'];
       if (setCookieHeader) {
         const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
         this.cookieAutenticacao = cookies.map((c) => c.split(';')[0].trim()).join('; ');
       }
 
-      // 3. Validação do Handshake consultando a versão do app e da Web API
+      // 3. Handshake validation querying app and Web API version
       let appVersion = 'v5.x';
       let webApiVersion = 'v2.x';
 
@@ -190,7 +190,7 @@ export class QBittorrentClient implements TorrentClient {
           webApiVersion = resApiVer.bodyText.trim();
         }
       } catch {
-        // Se a chamada de versão falhar mas o login foi 204/200, mantém a sessão
+        // If version call fails but login succeeded with 204/200, preserve the session
       }
 
       const latencyMs = Date.now() - inicio;
@@ -229,7 +229,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Encerra a sessão ativa com o qBittorrent
+   * Closes active session with qBittorrent
    */
   async desconectar(): Promise<void> {
     if (!this.conectado) return;
@@ -249,7 +249,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Lista todos os torrents disponíveis no qBittorrent
+   * Lists all torrents available in qBittorrent
    */
   async listarTorrents(): Promise<Torrent[]> {
     if (!this.conectado) {
@@ -265,7 +265,7 @@ export class QBittorrentClient implements TorrentClient {
         timeoutMs: 8000,
       });
 
-      // Se a sessão expirou no qBittorrent (HTTP 403 Forbidden), tenta renovar
+      // If session expired in qBittorrent (HTTP 403 Forbidden), attempt to refresh
       if (response.statusCode === 403 || response.statusCode === 401) {
         this.conectado = false;
         const reconnected = await this.conectar().catch(() => false);
@@ -308,7 +308,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Lista os arquivos de um torrent específico
+   * Lists files of a specific torrent
    */
   async listarArquivos(torrentHash: string): Promise<TorrentFile[]> {
     if (!torrentHash) return [];
@@ -344,13 +344,13 @@ export class QBittorrentClient implements TorrentClient {
       }
 
       if (response.statusCode !== 200 || !response.bodyText) {
-        console.warn(`[QBittorrentClient] Resposta HTTP ${response.statusCode} ao listar arquivos de ${torrentHash}`);
+        console.warn(`[QBittorrentClient] HTTP response ${response.statusCode} while listing files for ${torrentHash}`);
         return [];
       }
 
       return this.parsearArquivos(response.bodyText);
     } catch (err: any) {
-      console.error(`[QBittorrentClient] Erro ao listar arquivos do torrent ${torrentHash}:`, err?.message || err);
+      console.error(`[QBittorrentClient] Error listing torrent files for ${torrentHash}:`, err?.message || err);
       return [];
     }
   }
@@ -378,13 +378,13 @@ export class QBittorrentClient implements TorrentClient {
         };
       });
     } catch (parseErr: any) {
-      console.error('[QBittorrentClient] Erro ao fazer parse de arquivos:', parseErr?.message || parseErr);
+      console.error('[QBittorrentClient] Error parsing files:', parseErr?.message || parseErr);
       return [];
     }
   }
 
   /**
-   * Lista os arquivos de múltiplos torrents em lote com concorrência controlada
+   * Lists files of multiple torrents in batch with controlled concurrency
    */
   async listarArquivosEmLote(torrentHashes: string[]): Promise<Record<string, TorrentFile[]>> {
     if (!torrentHashes || torrentHashes.length === 0) {
@@ -402,7 +402,7 @@ export class QBittorrentClient implements TorrentClient {
             const files = await this.listarArquivos(hash);
             resultado[hash] = files || [];
           } catch (err: any) {
-            console.warn(`[QBittorrentClient] Falha ao obter arquivos do hash ${hash}:`, err?.message || err);
+            console.warn(`[QBittorrentClient] Failed to retrieve files for hash ${hash}:`, err?.message || err);
             resultado[hash] = [];
           }
         })
@@ -413,10 +413,10 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Altera a prioridade de download de arquivos dentro de um torrent
-   * @param torrentHash Identificador hash do torrent
-   * @param fileIndices Índices dos arquivos dentro do torrent
-   * @param prioridade Nova prioridade a ser atribuída (0 = Não baixar, 1 = Normal, 6 = Alta, 7 = Máxima)
+   * Changes download priority of files within a torrent
+   * @param torrentHash Torrent hash identifier
+   * @param fileIndices File indices within the torrent
+   * @param prioridade New priority to assign (0 = Do not download, 1 = Normal, 6 = High, 7 = Maximum)
    */
   async alterarPrioridades(
     torrentHash: string,
@@ -424,7 +424,7 @@ export class QBittorrentClient implements TorrentClient {
     prioridade: FilePriority
   ): Promise<boolean> {
     if (!torrentHash || fileIndices.length === 0) {
-      return true; // Nada a alterar
+      return true; // Nothing to change
     }
 
     if (!this.conectado) {
@@ -434,7 +434,7 @@ export class QBittorrentClient implements TorrentClient {
       }
     }
 
-    // Se a lista de índices for grande, processa em lotes de 1000 para evitar sobrecarga no qBittorrent WebAPI
+    // If index list is large, process in chunks of 1000 to avoid overloading qBittorrent WebAPI
     const CHUNK_SIZE = 1000;
     if (fileIndices.length > CHUNK_SIZE) {
       for (let i = 0; i < fileIndices.length; i += CHUNK_SIZE) {
@@ -462,7 +462,7 @@ export class QBittorrentClient implements TorrentClient {
         timeoutMs: 8000,
       });
 
-      // Se a sessão expirou no qBittorrent, tenta renovar e reenviar
+      // If session expired in qBittorrent, attempt to refresh and resend
       if (response.statusCode === 403 || response.statusCode === 401) {
         this.conectado = false;
         const reconnected = await this.conectar().catch(() => false);
@@ -472,16 +472,16 @@ export class QBittorrentClient implements TorrentClient {
         throw new Error('Sessão expirada no qBittorrent ao tentar alterar prioridades.');
       }
 
-      // No qBittorrent, tanto 200 OK quanto 204 No Content representam sucesso
+      // In qBittorrent, both 200 OK and 204 No Content represent success
       return response.statusCode === 200 || response.statusCode === 204;
     } catch (err: any) {
-      console.error('[QBittorrentClient] Erro ao alterar prioridades:', err);
+      console.error('[QBittorrentClient] Error changing priorities:', err);
       throw new Error(`Falha ao comunicar com o qBittorrent: ${err.message}`);
     }
   }
 
   /**
-   * Exclui os arquivos físicos correspondentes aos índices especificados do disco local
+   * Deletes physical files corresponding to specified indices from local disk
    */
   async apagarArquivos(
     torrentHash: string,
@@ -500,7 +500,7 @@ export class QBittorrentClient implements TorrentClient {
     const indicesSet = new Set(fileIndices.map(Number));
     const urlBase = this.obterUrlBase();
 
-    // 1. Obter informações de diretório do torrent (save_path, content_path)
+    // 1. Get torrent directory information (save_path, content_path)
     let savePath = '';
     let contentPath = '';
 
@@ -519,10 +519,10 @@ export class QBittorrentClient implements TorrentClient {
         }
       }
     } catch (err) {
-      console.warn('[QBittorrentClient] Aviso ao buscar diretório de download do torrent:', err);
+      console.warn('[QBittorrentClient] Warning fetching torrent download directory:', err);
     }
 
-    // 2. Obter lista de arquivos do torrent no qBittorrent
+    // 2. Get torrent file list from qBittorrent
     let filesList: any[] = [];
     try {
       const resFiles = await this.fazerRequisicao({
@@ -535,7 +535,7 @@ export class QBittorrentClient implements TorrentClient {
         filesList = JSON.parse(resFiles.bodyText) as any[];
       }
     } catch (err) {
-      console.error('[QBittorrentClient] Erro ao obter lista de arquivos para exclusão:', err);
+      console.error('[QBittorrentClient] Error obtaining file list for deletion:', err);
       throw new Error(`Falha ao obter lista de arquivos do qBittorrent: ${(err as Error).message}`);
     }
 
@@ -544,7 +544,7 @@ export class QBittorrentClient implements TorrentClient {
     const apagados: string[] = [];
     const falhas: { arquivo: string; erro: string }[] = [];
 
-    // 3. Processar e excluir cada arquivo selecionado
+    // 3. Process and delete each selected file
     for (let idx = 0; idx < filesList.length; idx++) {
       const f = filesList[idx];
       const fileIndex = typeof f.index === 'number' ? f.index : idx;
@@ -572,7 +572,7 @@ export class QBittorrentClient implements TorrentClient {
         candidatos.push(normalizedRelative);
       }
 
-      // Remove duplicatas
+      // Remove duplicates
       const caminhosUnicos = Array.from(new Set(candidatos));
       let arquivoExcluido = false;
 
@@ -591,7 +591,7 @@ export class QBittorrentClient implements TorrentClient {
               espacoLiberadoBytes += fileSize;
               apagados.push(rawFileName);
 
-              // Tenta remover diretórios pai vazios dentro da pasta do torrent
+              // Attempt to remove empty parent directories within the torrent folder
               let parentDir = path.dirname(filePath);
               const limitPath1 = savePath ? path.resolve(savePath) : '';
               const limitPath2 = contentPath ? path.resolve(contentPath) : '';
@@ -638,8 +638,8 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Aplica em lote as prioridades de arquivos marcados (prioridade 1 - Normal)
-   * e arquivos desmarcados (prioridade 0 - Não baixar), com opção de exclusão física dos desmarcados
+   * Batch applies priorities for marked files (priority 1 - Normal)
+   * and unmarked files (priority 0 - Do not download), with option to physically delete unmarked files
    */
   async aplicarPrioridadesConfiguradas(
     torrentHash: string,
@@ -664,7 +664,7 @@ export class QBittorrentClient implements TorrentClient {
       try {
         exclusaoResult = await this.apagarArquivos(torrentHash, desmarcadosIndices);
       } catch (err) {
-        console.error('[QBittorrentClient] Erro durante exclusão de arquivos desativados:', err);
+        console.error('[QBittorrentClient] Error during deletion of disabled files:', err);
       }
     }
 
@@ -684,7 +684,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Utilitário HTTP/HTTPS com envio de headers de validação de Host e CSRF
+   * HTTP/HTTPS utility with Host and CSRF validation headers
    */
   private fazerRequisicao(opcoes: {
     url: string;
@@ -752,7 +752,7 @@ export class QBittorrentClient implements TorrentClient {
       });
 
       req.on('timeout', () => {
-        req.destroy(new Error(`Timeout de conexão (${timeoutMs}ms)`));
+        req.destroy(new Error(`Connection timeout (${timeoutMs}ms)`));
       });
 
       req.on('error', (err) => {
@@ -804,7 +804,7 @@ export class QBittorrentClient implements TorrentClient {
   }
 
   /**
-   * Abre a pasta do arquivo baixado no gerenciador de arquivos do sistema operacional nativo
+   * Opens downloaded file directory in native operating system file manager
    */
   async abrirPastaArquivo(
     torrentHash: string,
@@ -816,7 +816,7 @@ export class QBittorrentClient implements TorrentClient {
 
     const urlBase = this.obterUrlBase();
 
-    // 1. Obter informações de diretório do torrent (save_path, content_path)
+    // 1. Get torrent directory information (save_path, content_path)
     let savePath = '';
     let contentPath = '';
 
@@ -835,10 +835,10 @@ export class QBittorrentClient implements TorrentClient {
         }
       }
     } catch (err) {
-      console.warn('[QBittorrentClient] Aviso ao buscar diretório do torrent:', err);
+      console.warn('[QBittorrentClient] Warning fetching torrent directory:', err);
     }
 
-    // 2. Obter informações do arquivo específico
+    // 2. Get specific file information
     let targetFile: any = null;
     try {
       const resFiles = await this.fazerRequisicao({
@@ -913,7 +913,7 @@ export class QBittorrentClient implements TorrentClient {
       };
     }
 
-    // Executa comando no sistema operacional para abrir o explorador
+    // Execute command on operating system to open file explorer
     try {
       await abrirNoExploradorDeArquivos(pathToOpen, Boolean(existingFilePath));
       return {
@@ -932,7 +932,7 @@ export class QBittorrentClient implements TorrentClient {
 }
 
 /**
- * Função utilitária agnóstica de sistema operacional para abrir pasta/selecionar arquivo
+ * Operating-system-agnostic utility function to open directory / select file
  */
 export function abrirNoExploradorDeArquivos(targetPath: string, isFile: boolean): Promise<void> {
   return new Promise((resolve, reject) => {

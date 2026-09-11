@@ -4,12 +4,12 @@ import { TorrentClientConfig } from '../../../domain/models/TorrentClientConfig.
 import { QBittorrentClient } from '../../clients/QBittorrentClient.js';
 
 /**
- * Provedor oficial do cliente qBittorrent via Web API v2
+ * Official qBittorrent client provider via Web API v2
  */
 export class QBittorrentProvider implements TorrentClientProvider {
   readonly id = 'qbittorrent';
   readonly nome = 'qBittorrent';
-  readonly descricao = 'Suporte completo ao cliente qBittorrent via Web API v2 com autenticação SID.';
+  readonly descricao = 'Full support for qBittorrent client via Web API v2 with SID authentication.';
   readonly versao = '1.0.0';
 
   criarCliente(config?: Partial<TorrentClientConfig>): TorrentClient {

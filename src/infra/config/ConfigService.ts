@@ -29,8 +29,8 @@ export const DEFAULT_CONFIG: AppConfig = {
 };
 
 /**
- * Valida e converte um valor para porta de rede TCP válida (1 a 65535).
- * Retorna o fallback caso o valor seja inválido.
+ * Validates and converts a value to a valid TCP network port (1 to 65535).
+ * Returns fallback if the value is invalid.
  */
 function normalizarPorta(valor: unknown, fallback: number = 3000): number {
   if (valor === undefined || valor === null || valor === '') {
@@ -50,7 +50,7 @@ export class ConfigService {
   private static envCarregado: boolean = false;
 
   /**
-   * Obtém o diretório onde o executável ou runtime está localizado
+   * Gets the directory where the executable or runtime is located
    */
   static obterDiretorioExecutavel(): string {
     try {
@@ -64,19 +64,19 @@ export class ConfigService {
   }
 
   /**
-   * Carrega variáveis de ambiente a partir de um arquivo .env localizado
-   * na mesma pasta do executável ou no diretório de trabalho atual.
+   * Loads environment variables from a .env file located
+   * in the same folder as the executable or in the current working directory.
    *
-   * Suporta:
-   * - PORT=3000 ou SERVER_PORT=... ou APP_PORT=...
-   * - Chaves e valores com ou sem aspas (" ou ')
-   * - Linhas com export: "export PORT=8080"
-   * - Comentários com # e linhas em branco
+   * Supports:
+   * - PORT=3000 or SERVER_PORT=... or APP_PORT=...
+   * - Keys and values with or without quotes (" or ')
+   * - Lines starting with export: "export PORT=8080"
+   * - Comments with # and blank lines
    */
   static carregarEnv(caminhoPersonalizado?: string): Record<string, string> {
     const variaveisLidas: Record<string, string> = {};
 
-    // Locais candidatos para o arquivo .env (priorizando a pasta do executável)
+    // Candidate locations for the .env file (prioritizing executable directory)
     const execDir = this.obterDiretorioExecutavel();
     const cwdDir = process.cwd();
 
@@ -88,7 +88,7 @@ export class ConfigService {
       path.join(cwdDir, '.env'),
     ].filter((c): c is string => Boolean(c && typeof c === 'string'));
 
-    // Remove duplicatas mantendo a ordem de prioridade
+    // Remove duplicates preserving priority order
     const caminhosUnicos = Array.from(new Set(caminhosCandidatos));
 
     for (const envFile of caminhosUnicos) {
@@ -101,12 +101,12 @@ export class ConfigService {
 
             for (const linha of linhas) {
               const trimmed = linha.trim();
-              // Ignora linhas vazias ou comentários iniciados por #
+              // Ignore empty lines or comments starting with #
               if (!trimmed || trimmed.startsWith('#')) {
                 continue;
               }
 
-              // Remove 'export ' inicial se presente (ex: export PORT=3000)
+              // Remove leading 'export ' if present (e.g., export PORT=3000)
               const linhaLimpa = trimmed.startsWith('export ') ? trimmed.slice(7).trim() : trimmed;
               const separadorIdx = linhaLimpa.indexOf('=');
 
@@ -114,7 +114,7 @@ export class ConfigService {
                 const chave = linhaLimpa.slice(0, separadorIdx).trim();
                 let valor = linhaLimpa.slice(separadorIdx + 1).trim();
 
-                // Se o valor começa com aspas (duplas ou simples)
+                // If the value starts with quotes (double or single)
                 if (valor.startsWith('"') || valor.startsWith("'")) {
                   const quoteChar = valor[0];
                   const closingIdx = valor.indexOf(quoteChar, 1);
@@ -124,14 +124,14 @@ export class ConfigService {
                     valor = valor.slice(1);
                   }
                 } else {
-                  // Sem aspas: remove comentários inline iniciados por #
+                  // Without quotes: remove inline comments starting with #
                   const hashIdx = valor.indexOf('#');
                   if (hashIdx !== -1) {
                     valor = valor.slice(0, hashIdx).trim();
                   }
                 }
 
-                // Injeta no dicionário e no process.env para que PORT e demais variáveis tenham efeito imediato
+                // Inject into dictionary and process.env so that PORT and other variables take immediate effect
                 variaveisLidas[chave] = valor;
                 process.env[chave] = valor;
               }
@@ -139,11 +139,11 @@ export class ConfigService {
 
             this.loadedEnvPath = envFile;
             this.envCarregado = true;
-            // Interrompe no primeiro arquivo .env válido encontrado
+            // Stop at the first valid .env file found
             break;
           }
         } catch (err) {
-          console.warn(`[ConfigService] Erro ao analisar o arquivo .env em "${envFile}":`, err);
+          console.warn(`[ConfigService] Error parsing .env file at "${envFile}":`, err);
         }
       }
     }
@@ -153,21 +153,21 @@ export class ConfigService {
   }
 
   /**
-   * Retorna o caminho do arquivo .env que foi carregado com sucesso (ou null se nenhum)
+   * Returns the path of the .env file successfully loaded (or null if none)
    */
   static getEnvPath(): string | null {
     return this.loadedEnvPath;
   }
 
   /**
-   * Obtém o caminho do arquivo de configuração persistente (data/config.json)
+   * Gets the path of the persistent configuration file (data/config.json)
    */
   static getPath(): string {
     return this.configPath;
   }
 
   /**
-   * Define um caminho personalizado para o arquivo de configuração
+   * Sets a custom path for the configuration file
    */
   static setPath(newPath: string): void {
     this.configPath = newPath;
@@ -175,22 +175,22 @@ export class ConfigService {
   }
 
   /**
-   * Carrega a configuração mesclando arquivo .env, arquivo config.json e valores padrão.
-   * A porta padrão é sempre 3000 caso nenhuma outra seja especificada no .env ou configuração.
+   * Loads configuration merging .env file, config.json file, and default values.
+   * Default port is always 3000 if none other is specified in .env or config.
    */
   static carregar(): AppConfig {
     if (this.cachedConfig) {
       return this.cachedConfig;
     }
 
-    // Carrega variáveis do .env na pasta do executável se ainda não tiver sido chamado
+    // Load .env variables from executable directory if not already loaded
     if (!this.envCarregado) {
       this.carregarEnv();
     }
 
     let fileConfig: Partial<AppConfig> = {};
 
-    // Tenta encontrar o arquivo data/config.json na pasta atual ou na pasta do executável
+    // Try to find data/config.json file in current directory or executable directory
     const execDir = this.obterDiretorioExecutavel();
     const possiveisCaminhosJson = [
       this.configPath,
@@ -206,19 +206,19 @@ export class ConfigService {
           this.configPath = jsonPath;
           break;
         } catch (err) {
-          console.warn(`[ConfigService] Aviso ao ler ${jsonPath}, usando valores padrão.`, err);
+          console.warn(`[ConfigService] Warning reading ${jsonPath}, using default values.`, err);
         }
       }
     }
 
-    // Lê porta de variáveis do .env / process.env (PORT, SERVER_PORT, APP_PORT, etc.)
+    // Read port from .env / process.env variables (PORT, SERVER_PORT, APP_PORT, etc.)
     const portEnvRaw =
       process.env.PORT ||
       process.env.SERVER_PORT ||
       process.env.APP_PORT ||
       process.env.TORRENT_MANAGER_PORT;
 
-    // Normaliza a porta para um número TCP válido (1 a 65535) com fallback padrão 3000
+    // Normalize port to a valid TCP number (1 to 65535) with default fallback 3000
     let portaFinal = DEFAULT_CONFIG.server.port; // 3000
     if (portEnvRaw !== undefined && portEnvRaw !== '') {
       portaFinal = normalizarPorta(portEnvRaw, DEFAULT_CONFIG.server.port);
@@ -260,7 +260,7 @@ export class ConfigService {
   }
 
   /**
-   * Salva a configuração atualizada no arquivo JSON de forma persistente
+   * Saves updated configuration to JSON file persistently
    */
   static salvar(novaConfig: Partial<AppConfig>): AppConfig {
     const configAtual = this.carregar();
@@ -285,15 +285,15 @@ export class ConfigService {
       fs.writeFileSync(this.configPath, JSON.stringify(configAtualizada, null, 2), 'utf-8');
       this.cachedConfig = configAtualizada;
     } catch (err) {
-      console.error(`[ConfigService] Erro ao salvar arquivo de configuração em ${this.configPath}:`, err);
-      throw new Error(`Falha ao persistir configurações no arquivo: ${(err as Error).message}`);
+      console.error(`[ConfigService] Error saving configuration file at ${this.configPath}:`, err);
+      throw new Error(`Failed to persist configurations to file: ${(err as Error).message}`);
     }
 
     return configAtualizada;
   }
 
   /**
-   * Salva especificamente a configuração do qBittorrent
+   * Specifically saves qBittorrent configuration
    */
   static salvarQBittorrent(config: Partial<TorrentClientConfig>): AppConfig {
     return this.salvar({ qbittorrent: config as TorrentClientConfig });

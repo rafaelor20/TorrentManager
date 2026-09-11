@@ -1,12 +1,12 @@
 /**
- * Componente da Tabela de Torrents e Estatísticas Rápidas
- * Recursos:
- * - Separação e Filtragem por Categorias (Pílulas dinâmicas e Agrupamento por Categoria)
- * - Filtragem Instantânea por Status ao clicar nos cards de estatísticas acima
- * - Pesquisa Instantânea de Torrents por Nome, Categoria e Hash
- * - Ordenação Inteligente por Coluna (Nome, Categoria, Status, Progresso, Tamanho, Velocidade)
- * - Indicadores visuais de ordenação (▲ / ▼ / ↕), categoria e filtro ativo
- * - Sincronização em tempo real e atualização de estatísticas
+ * Torrent Table and Quick Stats Component
+ * Features:
+ * - Category separation and filtering (dynamic pills and category grouping)
+ * - Instant status filtering by clicking top stat cards
+ * - Instant torrent search by name, category, and hash
+ * - Smart column sorting (name, category, status, progress, size, speeds)
+ * - Visual sort indicators (▲ / ▼ / ↕), category, and active filter states
+ * - Real-time synchronization and statistics refresh
  */
 
 import { state } from '../state.js';
@@ -17,7 +17,7 @@ import { selecionarTorrent, atualizarHeaderTorrentSelecionado, atualizarArquivos
 import { t, formatTime } from '../utils/i18n.js';
 
 // ==========================================
-// 1. FILTRAGEM DE TORRENTS (STATUS, CATEGORIA & BUSCA)
+// 1. TORRENT FILTERING (STATUS, CATEGORY & SEARCH)
 // ==========================================
 
 export function obterTorrentsVisiveis() {
@@ -30,7 +30,7 @@ export function obterTorrentsVisiveis() {
   const tokensBusca = extrairTokensBusca(termo);
 
   const filtrados = lista.filter((t) => {
-    // 1. Filtro por status
+    // 1. Status filter
     if (filtroStatus === 'completed') {
       const isCompleted = t.status === 'uploading' || t.status === 'completed' || (typeof t.progress === 'number' && t.progress >= 1);
       if (!isCompleted) return false;
@@ -40,7 +40,7 @@ export function obterTorrentsVisiveis() {
       if (t.status !== 'paused') return false;
     }
 
-    // 2. Filtro por categoria
+    // 2. Category filter
     if (filtroCat !== 'all') {
       if (filtroCat === '__none__') {
         if (t.category && t.category.trim().length > 0) return false;
@@ -49,7 +49,7 @@ export function obterTorrentsVisiveis() {
       }
     }
 
-    // 3. Filtro por busca de texto (nome, categoria e hash)
+    // 3. Text search filter (name, category, and hash)
     if (tokensBusca.length > 0) {
       const searchStr = normalizarTextoBusca(`${t.name || ''} ${t.category || ''} ${t.hash || ''}`);
       for (let i = 0; i < tokensBusca.length; i++) {
@@ -126,7 +126,7 @@ export function atualizarPilulasCategoriasUI() {
 
   state.categoriasDisponiveis = categoriasUnicas;
 
-  // Se não houver categorias registradas nos torrents, oculta a barra de pílulas
+  // If there are no categories assigned to torrents, hide the pills bar
   if (categoriasUnicas.length === 0) {
     container.style.display = 'none';
     return;
@@ -333,7 +333,7 @@ export function filtrarTorrentsInstantaneamente() {
 }
 
 // ==========================================
-// 2. ORDENAÇÃO DE TORRENTS (SORTING)
+// 2. TORRENT SORTING
 // ==========================================
 
 export function alterarOrdenacaoTorrents(colunaId) {
@@ -433,7 +433,7 @@ export function ordenarTorrents(lista) {
 }
 
 // ==========================================
-// 3. RENDERIZAÇÃO DA TABELA DE TORRENTS
+// 3. TORRENT TABLE RENDERING
 // ==========================================
 
 function renderizarLinhaTorrent(t) {
@@ -522,7 +522,7 @@ export function renderizarTabelaTorrents() {
     state.filtroTorrentsCategoria !== 'all'
   );
 
-  // Atualiza contadores e badges de status
+  // Update counters and status badges
   if (torrentSearchResultCount) {
     if (temFiltroAtivo) {
       torrentSearchResultCount.textContent = t('showing_filtered_torrents', { count: totalFiltrado, total: totalOriginal });
@@ -576,7 +576,7 @@ export function renderizarTabelaTorrents() {
   let html = '';
 
   if (state.agruparPorCategoria) {
-    // Agrupa os torrents visíveis por categoria
+    // Group visible torrents by category
     const grupos = new Map();
 
     torrentsVisiveis.forEach((t) => {
@@ -620,7 +620,7 @@ export function renderizarTabelaTorrents() {
 
   torrentsTableBody.innerHTML = html;
 
-  // Adiciona listener de clique em cada linha para seleção
+  // Add click listener on each row for selection
   torrentsVisiveis.forEach((t) => {
     const row = torrentsTableBody.querySelector(`.torrent-row[data-hash="${t.hash}"]`);
     row?.addEventListener('click', () => selecionarTorrent(t));
@@ -628,7 +628,7 @@ export function renderizarTabelaTorrents() {
 }
 
 // ==========================================
-// 4. CARREGAMENTO E SINCRONIZAÇÃO DA API
+// 4. API LOADING AND SYNCHRONIZATION
 // ==========================================
 
 let isCarregandoTorrents = false;
@@ -666,7 +666,7 @@ export async function carregarTorrents(isManual = false) {
       const torrents = data.torrents || [];
       state.todosTorrents = torrents;
 
-      // Sincroniza dados do torrent selecionado atualmente e seus arquivos
+      // Synchronize data of currently selected torrent and its files
       if (state.torrentSelecionadoAtual) {
         if (state.torrentSelecionadoAtual.isCategoryVirtual) {
           const catKey = state.torrentSelecionadoAtual.category || '__none__';
@@ -701,7 +701,7 @@ export async function carregarTorrents(isManual = false) {
         }
       }
 
-      // Atualiza estatísticas no topo
+      // Update top statistics
       if (statTotalTorrents) statTotalTorrents.textContent = torrents.length;
 
       let countCompleted = 0;
@@ -787,7 +787,7 @@ export async function carregarTorrents(isManual = false) {
 }
 
 // ==========================================
-// 5. INICIALIZAÇÃO DE LISTENERS
+// 5. LISTENERS INITIALIZATION
 // ==========================================
 
 export function initTorrentsTable() {
@@ -803,7 +803,7 @@ export function initTorrentsTable() {
     carregarTorrents(true);
   });
 
-  // Listener de clique nos cabeçalhos para ordenação
+  // Click listener on table headers for sorting
   headerRow?.addEventListener('click', (e) => {
     const th = e.target.closest('th.sortable-th');
     if (!th) return;
@@ -814,7 +814,7 @@ export function initTorrentsTable() {
     }
   });
 
-  // Listener de clique nos cards de estatísticas (filtro rápido por status)
+  // Click listener on stat cards (quick status filter)
   statsGrid?.addEventListener('click', (e) => {
     const statBox = e.target.closest('.stat-box');
     if (!statBox) return;
@@ -825,7 +825,7 @@ export function initTorrentsTable() {
     }
   });
 
-  // Acessibilidade via teclado para os cards de estatísticas
+  // Keyboard accessibility for stat cards
   statsGrid?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       const statBox = e.target.closest('.stat-box');
@@ -839,7 +839,7 @@ export function initTorrentsTable() {
     }
   });
 
-  // Listener de clique nas pílulas de categoria
+  // Click listener on category pills
   categoryPillsList?.addEventListener('click', (e) => {
     const pill = e.target.closest('.category-pill');
     if (!pill) return;
@@ -852,13 +852,13 @@ export function initTorrentsTable() {
 
   const btnToggleConsolidated = document.getElementById('btnToggleConsolidatedCategory');
 
-  // Alternar agrupamento em seções por categoria
+  // Toggle category grouping sections
   btnToggleGroup?.addEventListener('click', alternarAgrupamentoPorCategoria);
 
-  // Alternar modo de consolidação de categorias como 1 torrent
+  // Toggle category consolidation mode as 1 torrent
   btnToggleConsolidated?.addEventListener('click', alternarModoConsolidadoCategoria);
 
-  // Pesquisa instantânea por nome, categoria ou hash
+  // Instant search by name, category, or hash
   inputSearch?.addEventListener('input', filtrarTorrentsInstantaneamente);
   inputSearch?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

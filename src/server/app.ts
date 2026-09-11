@@ -8,7 +8,7 @@ import { createRouter } from './routes.js';
 export function createApp(torrentClient: TorrentClient): Express {
   const app = express();
 
-  // Resolução resiliente da pasta public para execução normal, compilada ou em binário .exe
+  // Resilient resolution of the public folder for standard, compiled, or .exe binary execution
   let publicPath = path.resolve(process.cwd(), 'public');
 
   try {
@@ -32,15 +32,15 @@ export function createApp(torrentClient: TorrentClient): Express {
     publicPath = path.resolve(process.cwd(), 'public');
   }
 
-  // Middlewares com limite expandido para suportar torrents com 100.000+ arquivos
+  // Middleware with expanded limits to support torrents with 100,000+ files
   app.use(express.json({ limit: '100mb' }));
   app.use(express.urlencoded({ extended: true, limit: '100mb' }));
   app.use(express.static(publicPath));
 
-  // Rotas da API
+  // API routes
   app.use('/api', createRouter(torrentClient));
 
-  // Rota explícita para favicon.ico (evita que o fallback SPA sirva HTML para requisições de ícone no Windows)
+  // Explicit route for favicon.ico (prevents SPA fallback from serving HTML for icon requests on Windows)
   app.get('/favicon.ico', (_req, res) => {
     const icoPath = path.join(publicPath, 'favicon.ico');
     if (fs.existsSync(icoPath)) {
@@ -51,13 +51,13 @@ export function createApp(torrentClient: TorrentClient): Express {
     }
   });
 
-  // Fallback SPA / Interface Web
+  // SPA / Web Interface fallback
   app.get('*', (_req, res) => {
     const indexPath = path.join(publicPath, 'index.html');
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send('Interface Web (public/index.html) não encontrada.');
+      res.status(404).send('Web interface (public/index.html) not found.');
     }
   });
 

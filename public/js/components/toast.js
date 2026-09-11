@@ -1,5 +1,5 @@
 /**
- * Componente de notificações Toast
+ * Toast notifications component
  */
 
 let toastTimeout = null;

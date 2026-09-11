@@ -5,5 +5,5 @@ export interface TorrentClientConfig {
   password?: string;
   useHttps?: boolean;
   timeoutMs?: number;
-  refreshInterval?: number; // Intervalo de atualização automática em segundos (ex: 5, 10, 30, 60)
+  refreshInterval?: number; // Auto-refresh interval in seconds (e.g. 5, 10, 30, 60)
 }

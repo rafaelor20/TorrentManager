@@ -1,12 +1,12 @@
 /**
- * Componente do Gerenciador de Arquivos do Torrent
- * Recursos:
- * - Virtualização de Alto Desempenho (Windowing DOM a 60 FPS para 100.000+ arquivos)
- * - Ordenação Inteligente por Coluna (Nome, Caminho, Tamanho, Prioridade, Progresso, #)
- * - Resize Dinâmico de Largura das Colunas com persistência local
- * - Reordenação de Posição de Colunas via Arrastar e Soltar (Drag & Drop)
- * - Menu de Contexto (Botão Direito) para Exibir / Ocultar Colunas
- * - Pesquisa Instantânea Pré-indexada e Seleção em Massa
+ * Torrent Files Manager Component
+ * Features:
+ * - High-Performance Virtualization (60 FPS DOM Windowing for 100,000+ files)
+ * - Intelligent Column Sorting (Name, Path, Size, Priority, Progress, #)
+ * - Dynamic Column Width Resizing with local persistence
+ * - Column Reordering via Drag & Drop
+ * - Context Menu (Right Click) to Show / Hide Columns
+ * - Pre-indexed Instant Search and Bulk Selection
  */
 
 import { state } from '../state.js';
@@ -16,8 +16,8 @@ import { mostrarToast } from './toast.js';
 import { setFeedback } from './diagnostics.js';
 import { t, formatNumber } from '../utils/i18n.js';
 
-const ROW_HEIGHT = 44; // Altura fixa de cada linha em pixels
-const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport
+const ROW_HEIGHT = 44; // Fixed height of each row in pixels
+const BUFFER_COUNT = 15; // Buffer of rendered rows in viewport
 
 const LOCAL_STORAGE_WIDTHS_KEY = 'torrentmanager_files_col_widths';
 const LOCAL_STORAGE_ORDER_KEY = 'torrentmanager_files_col_order';
@@ -49,14 +49,14 @@ export const COLUNAS_INFO = new Proxy(COLUNAS_CONFIG, {
 
 let scrollRafId = null;
 
-// Extrai estritamente apenas o nome do arquivo (ex: "video.mp4" de "Pasta/Sub/video.mp4")
+// Strictly extracts file name only (e.g., "video.mp4" from "Folder/Sub/video.mp4")
 export function extrairApenasNomeArquivo(rawName, rawPath) {
   const str = String(rawName || rawPath || '').replace(/\\/g, '/');
   const partes = str.split('/');
   return partes[partes.length - 1] || str;
 }
 
-// Extrai a estrutura de diretórios/pastas (ex: "Pasta/Sub" de "Pasta/Sub/video.mp4")
+// Extracts directory/folder structure (e.g., "Folder/Sub" from "Folder/Sub/video.mp4")
 export function extrairApenasCaminho(rawPath, rawName) {
   const str = String(rawPath || rawName || '').replace(/\\/g, '/');
   const partes = str.split('/');
@@ -70,7 +70,7 @@ export function extrairApenasCaminho(rawPath, rawName) {
   return './';
 }
 
-// Normaliza texto para busca (remove acentos e converte para minúsculas)
+// Normalizes search text (removes accents and converts to lowercase)
 export function normalizarTextoBusca(str) {
   if (!str) return '';
   return String(str)
@@ -79,7 +79,7 @@ export function normalizarTextoBusca(str) {
     .toLowerCase();
 }
 
-// Extrai tokens de busca suportando termos compostos por espaço ou aspas (ex: "gran turismo" usa ou gran turismo usa)
+// Extracts search tokens supporting space or quote separated terms (e.g., "gran turismo" usa or gran turismo usa)
 export function extrairTokensBusca(termo) {
   if (!termo) return [];
   const normalized = normalizarTextoBusca(termo).trim();
@@ -98,7 +98,7 @@ export function extrairTokensBusca(termo) {
 }
 
 // ==========================================
-// 1. GERENCIAMENTO DE ESTADO E RESUMO
+// 1. STATE MANAGEMENT AND SUMMARY
 // ==========================================
 
 export function obterColunasVisiveis() {
@@ -185,7 +185,7 @@ export function alternarSelecaoArquivo(index, forcarEstado = null) {
 }
 
 // ==========================================
-// 2. ORDENAÇÃO DE ARQUIVOS (SORTING)
+// 2. FILE SORTING
 // ==========================================
 
 export function alterarOrdenacao(colunaId) {
@@ -270,7 +270,7 @@ function ordenarListaDeArquivos(lista) {
 }
 
 // ==========================================
-// 3. FILTRAGEM & PESQUISA INSTANTÂNEA
+// 3. FILTERING & INSTANT SEARCH
 // ==========================================
 
 export function obterArquivosVisiveis() {
@@ -297,7 +297,7 @@ export function obterArquivosVisiveis() {
   const filtrados = state.todosArquivosDoTorrent.filter((f) => {
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : f.index;
 
-    // 1. Filtro de Status: Ativos (prio > 0) / Inativos (prio === 0) / Todos
+    // 1. Status filter: Active (prio > 0) / Inactive (prio === 0) / All
     if (statusFiltro === 'active' && f.priority === 0) {
       return false;
     }
@@ -305,12 +305,12 @@ export function obterArquivosVisiveis() {
       return false;
     }
 
-    // 2. Filtro: Apenas selecionados / marcados
+    // 2. Filter: Only selected / checked
     if (apenasSelecionados && !state.arquivosSelecionadosIndices.has(fileIndex)) {
       return false;
     }
 
-    // 3. Filtro: Pesquisa instantânea por múltiplas substrings (todas as palavras devem coincidir)
+    // 3. Filter: Instant search by multiple substrings (all words must match)
     if (tokensBusca.length > 0) {
       const searchStr = f._searchNormalized || normalizarTextoBusca(`${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`);
       for (let i = 0; i < tokensBusca.length; i++) {
@@ -352,7 +352,7 @@ export function filtrarArquivosInstantaneamente() {
 }
 
 // ==========================================
-// 4. RENDERIZAÇÃO VIRTUALIZADA (WINDOWING DOM)
+// 4. VIRTUALIZED RENDERING (DOM WINDOWING)
 // ==========================================
 
 function gerarCelula(colunaId, f, fileIndex, isSelected) {
@@ -482,7 +482,7 @@ export function renderizarTabelaArquivosVirtualizada() {
 
   const fragment = document.createDocumentFragment();
 
-  // Espaçador virtual superior
+  // Virtual top spacer
   if (topPadding > 0) {
     const spacerTop = document.createElement('tr');
     spacerTop.className = 'virtual-spacer-row';
@@ -491,7 +491,7 @@ export function renderizarTabelaArquivosVirtualizada() {
     fragment.appendChild(spacerTop);
   }
 
-  // Renderiza itens visíveis de acordo com as colunas ativas e ordenadas
+  // Render visible items according to active and ordered columns
   for (let i = startIndex; i < endIndex; i++) {
     const f = state.arquivosFiltradosAtuais[i];
     const fileIndex = f._fileIndex !== undefined ? f._fileIndex : (f.index !== undefined ? f.index : i);
@@ -507,7 +507,7 @@ export function renderizarTabelaArquivosVirtualizada() {
     fragment.appendChild(tr);
   }
 
-  // Espaçador virtual inferior
+  // Virtual bottom spacer
   if (bottomPadding > 0) {
     const spacerBottom = document.createElement('tr');
     spacerBottom.className = 'virtual-spacer-row';
@@ -522,7 +522,7 @@ export function renderizarTabelaArquivosVirtualizada() {
 }
 
 // ==========================================
-// 5. RESIZE DE COLUNAS (LARGURA ARRASTÁVEL)
+// 5. COLUMN RESIZING (DRAGGABLE WIDTH)
 // ==========================================
 
 function carregarLargurasColunas() {
@@ -593,7 +593,7 @@ function initColumnResizers() {
     document.addEventListener('mouseup', onMouseUp);
   });
 
-  // Double click no resizer restaura tamanho padrão da coluna
+  // Double click on resizer restores column default width
   headerRow.addEventListener('dblclick', (e) => {
     const resizer = e.target.closest('.col-resizer');
     if (!resizer) return;
@@ -612,7 +612,7 @@ function initColumnResizers() {
 }
 
 // ==========================================
-// 6. REORDENAÇÃO DE POSIÇÃO DAS COLUNAS (DRAG & DROP)
+// 6. COLUMN REORDERING (DRAG & DROP)
 // ==========================================
 
 function carregarOrdemColunas() {
@@ -743,7 +743,7 @@ function initColumnReordering() {
 }
 
 // ==========================================
-// 7. MENU DE CONTEXTO (EXIBIR / OCULTAR COLUNAS)
+// 7. CONTEXT MENU (SHOW / HIDE COLUMNS)
 // ==========================================
 
 function carregarColunasOcultas() {
@@ -770,7 +770,7 @@ export function alternarVisibilidadeColuna(colId) {
   if (isOculta) {
     state.hiddenColumns.delete(colId);
   } else {
-    // Garante que pelo menos 1 coluna permaneça sempre visível
+    // Ensure at least 1 column remains visible
     const visiveis = obterColunasVisiveis();
     if (visiveis.length <= 1) {
       mostrarToast(t('toast_warn_title'), t('toast_warn_min_col'), 'error');
@@ -838,7 +838,7 @@ function renderizarItensMenuContexto() {
     `;
   }).join('');
 
-  // Listeners para os itens do menu
+  // Menu item listeners
   container.querySelectorAll('.context-menu-item').forEach((item) => {
     item.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -861,7 +861,7 @@ function initFilesContextMenu() {
 
   if (!contextMenu || !filesTable) return;
 
-  // Abre menu no botão direito (contextmenu)
+  // Open context menu on right click (contextmenu)
   const openContextMenu = (e) => {
     e.preventDefault();
 
@@ -890,21 +890,21 @@ function initFilesContextMenu() {
   const metaBar = document.querySelector('.table-meta-bar');
   if (metaBar) metaBar.addEventListener('contextmenu', openContextMenu);
 
-  // Fecha menu ao clicar fora
+  // Close menu when clicking outside
   document.addEventListener('click', (e) => {
     if (contextMenu.style.display !== 'none' && !contextMenu.contains(e.target)) {
       contextMenu.style.display = 'none';
     }
   });
 
-  // Fecha menu com a tecla Escape
+  // Close menu on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && contextMenu.style.display !== 'none') {
       contextMenu.style.display = 'none';
     }
   });
 
-  // Ações do rodapé do menu de contexto
+  // Context menu footer actions
   btnShowAll?.addEventListener('click', (e) => {
     e.stopPropagation();
     exibirTodasColunas();
@@ -917,7 +917,7 @@ function initFilesContextMenu() {
 }
 
 // ==========================================
-// 8. SELEÇÃO E APLICAÇÃO DE PRIORIDADES
+// 8. PRIORITY SELECTION AND APPLICATION
 // ==========================================
 
 export function atualizarHeaderTorrentSelecionado() {
@@ -1075,7 +1075,7 @@ export async function atualizarArquivosSilenciosamente(torrent) {
     atualizarResumoSelecao();
     atualizarHeaderTorrentSelecionado();
   } catch {
-    // Ignora erros transitórios durante atualização silenciosa em background
+    // Ignore transient errors during silent background refresh
   } finally {
     isAtualizandoSilenciosamente = false;
   }
@@ -1217,7 +1217,7 @@ export async function selecionarTorrent(torrent) {
     if (ok && data?.sucesso) {
       state.todosArquivosDoTorrent = data.files || [];
 
-      // Indexação instantânea em O(N)
+      // Instant O(N) indexing
       state.arquivosSelecionadosIndices = new Set();
       state.todosArquivosDoTorrent.forEach((f, idx) => {
         f._fileIndex = f.index !== undefined ? f.index : idx;
@@ -1360,7 +1360,7 @@ export function perguntarExclusaoArquivosFisicos(qtdDesativados) {
 async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados) {
   const CHUNK_SIZE = 1500;
 
-  // Se ambos os arrays forem pequenos, envia direto em 1 única requisição rápida
+  // If both arrays are small, send directly in a single fast request
   if (marcados.length <= CHUNK_SIZE && desmarcados.length <= CHUNK_SIZE) {
     return apiService.applyPriority(hash, {
       marcadosIndices: marcados,
@@ -1375,7 +1375,7 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
   let totalEspacoLiberadoBytes = 0;
   let todosOk = true;
 
-  // 1. Enviar marcados em blocos de 1500
+  // 1. Send checked items in chunks of 1500
   for (let i = 0; i < marcados.length; i += CHUNK_SIZE) {
     const chunk = marcados.slice(i, i + CHUNK_SIZE);
     const { ok, data } = await apiService.applyPriority(hash, {
@@ -1390,7 +1390,7 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
     }
   }
 
-  // 2. Enviar desmarcados em blocos de 1500 (exclusão no último bloco se solicitado)
+  // 2. Send unchecked items in chunks of 1500 (deletion on the last chunk if requested)
   for (let i = 0; i < desmarcados.length; i += CHUNK_SIZE) {
     const chunk = desmarcados.slice(i, i + CHUNK_SIZE);
     const isLastChunk = (i + CHUNK_SIZE) >= desmarcados.length;
@@ -1453,11 +1453,11 @@ export async function salvarPrioridades() {
 
   let apagarDesativados = false;
 
-  // Pergunta sobre exclusão do disco APENAS se houver arquivos que eram ativos e foram recém-desativados nesta ação
+  // Ask about disk deletion ONLY if there are files that were active and were newly unchecked in this action
   if (recemDesativadosIndices.length > 0) {
     const decisao = await perguntarExclusaoArquivosFisicos(recemDesativadosIndices.length);
     if (decisao === null) {
-      // Usuário cancelou a operação no modal
+      // User cancelled the operation in the modal
       return;
     }
     apagarDesativados = Boolean(decisao);
@@ -1477,7 +1477,7 @@ export async function salvarPrioridades() {
 
   try {
     if (isVirtual) {
-      // Agrupa os arquivos por torrent de origem
+      // Group files by source torrent
       const porTorrent = new Map();
 
       state.todosArquivosDoTorrent.forEach((f) => {
@@ -1596,7 +1596,7 @@ export async function salvarPrioridades() {
   }
 }
 
-// Função para solicitar a abertura da pasta do arquivo no sistema operacional
+// Request opening the file's folder in the operating system
 export async function acaoAbrirPastaArquivo(fileIndex) {
   if (!state.torrentSelecionadoAtual) return;
 
@@ -1640,7 +1640,7 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
   }
 }
 
-// Função para recarregar manualmente o estado e prioridades dos arquivos do torrent selecionado
+// Manually reload the state and priorities of files for the selected torrent
 export async function recarregarArquivosDoTorrentAtual() {
   if (!state.torrentSelecionadoAtual) {
     mostrarToast(t('toast_warn_title'), t('toast_warn_no_torrent_refresh'), 'info');
@@ -1759,7 +1759,7 @@ export async function recarregarArquivosDoTorrentAtual() {
 }
 
 // ==========================================
-// 9. INICIALIZAÇÃO DE LISTENERS
+// 9. LISTENERS INITIALIZATION
 // ==========================================
 
 export function initFilesManager() {
@@ -1777,12 +1777,12 @@ export function initFilesManager() {
   const torrentFilesSection = document.getElementById('torrentFilesSection');
   const headerRow = document.getElementById('filesTableHeaderRow');
 
-  // Inicializa Resizers, Drag & Drop e Menu de Contexto
+  // Initialize resizers, drag & drop, and context menu
   initColumnResizers();
   initColumnReordering();
   initFilesContextMenu();
 
-  // Listener de clique nos cabeçalhos para ordenação
+  // Click listener on table headers for sorting
   headerRow?.addEventListener('click', (e) => {
     if (e.target.closest('.col-resizer')) return;
 
@@ -1795,9 +1795,9 @@ export function initFilesManager() {
     }
   });
 
-  // Event Delegation no corpo da tabela
+  // Event delegation on table body
   filesTableBody?.addEventListener('click', (e) => {
-    // 1. Se clicou no checkbox ou no label do checkbox, deixa o comportamento do checkbox agir
+    // 1. If clicked on checkbox or its label, let native checkbox behavior handle it
     if (e.target.classList.contains('file-check-input') || e.target.closest('label.file-check-label')) {
       return;
     }
@@ -1807,7 +1807,7 @@ export function initFilesManager() {
     const index = Number(tr.dataset.index);
     if (isNaN(index)) return;
 
-    // 2. Se clicou no nome do arquivo ou no botão de abrir pasta:
+    // 2. If clicked on the file name or open folder button:
     const targetFolderAction = e.target.closest('[data-action="open-folder"]') || e.target.closest('.file-name-text') || e.target.closest('.btn-file-open-folder');
     if (targetFolderAction) {
       e.stopPropagation();
@@ -1815,11 +1815,11 @@ export function initFilesManager() {
       return;
     }
 
-    // 3. Caso contrário (clique no restante da linha: índice, caminho, tamanho, prioridade, progresso), alterna seleção
+    // 3. Otherwise (click on the rest of the row: index, path, size, priority, progress), toggle selection
     alternarSelecaoArquivo(index);
   });
 
-  // Double-click na linha também abre a pasta se o arquivo estiver baixado
+  // Double-click on row also opens the folder if file is downloaded
   filesTableBody?.addEventListener('dblclick', (e) => {
     const tr = e.target.closest('.torrent-file-row');
     if (!tr) return;
@@ -1838,7 +1838,7 @@ export function initFilesManager() {
     }
   });
 
-  // Ações de seleção em massa
+  // Bulk selection actions
   btnSelectAll?.addEventListener('click', () => {
     const visiveis = obterArquivosVisiveis();
     if (visiveis.length === 0) return;
@@ -1907,7 +1907,7 @@ export function initFilesManager() {
     );
   });
 
-  // Filtros e busca
+  // Filters and search
   inputSearchFiles?.addEventListener('input', filtrarArquivosInstantaneamente);
   document.querySelectorAll('input[name="fileStatusFilter"]').forEach((radio) => {
     radio.addEventListener('change', filtrarArquivosInstantaneamente);
@@ -1927,7 +1927,7 @@ export function initFilesManager() {
     }
   });
 
-  // Scroll virtualizado
+  // Virtualized scroll
   filesScrollArea?.addEventListener('scroll', () => {
     if (scrollRafId) cancelAnimationFrame(scrollRafId);
     scrollRafId = requestAnimationFrame(() => {
@@ -1935,7 +1935,7 @@ export function initFilesManager() {
     });
   }, { passive: true });
 
-  // Fechar arquivos
+  // Close files
   btnFecharArquivos?.addEventListener('click', () => {
     if (torrentFilesSection) torrentFilesSection.style.display = 'none';
     state.torrentSelecionadoAtual = null;
@@ -1944,13 +1944,13 @@ export function initFilesManager() {
     document.querySelectorAll('.torrent-row').forEach((r) => r.classList.remove('selected'));
   });
 
-  // Salvar prioridades
+  // Save priorities
   btnSalvarPrioridades?.addEventListener('click', salvarPrioridades);
 
-  // Recarregar arquivos do torrent a partir do qBittorrent
+  // Reload torrent files from qBittorrent
   btnRecarregarArquivosTorrent?.addEventListener('click', recarregarArquivosDoTorrentAtual);
 
-  // Listener de mudança de idioma para atualizar renderização dinâmica do gerenciador de arquivos
+  // Language change listener to update dynamic file manager rendering
   window.addEventListener('languageChanged', () => {
     renderizarOrdemColunasHeader();
     renderizarItensMenuContexto();

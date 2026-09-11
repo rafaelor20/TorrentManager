@@ -806,14 +806,14 @@ export const translations = {
 let currentLanguage = 'en';
 
 /**
- * Obtém o idioma atual configurado
+ * Gets currently configured language
  */
 export function getLanguage() {
   return currentLanguage;
 }
 
 /**
- * Formata um número conforme a localidade atual
+ * Formats a number according to current locale
  */
 export function formatNumber(num) {
   if (num === undefined || num === null || isNaN(num)) return '0';
@@ -821,7 +821,7 @@ export function formatNumber(num) {
 }
 
 /**
- * Formata uma data/hora conforme a localidade atual
+ * Formats a date/time according to current locale
  */
 export function formatTime(date) {
   const d = date instanceof Date ? date : new Date(date || Date.now());
@@ -829,7 +829,7 @@ export function formatTime(date) {
 }
 
 /**
- * Traduz uma chave para o idioma ativo com interpolação de parâmetros {key}
+ * Translates a key to active language with {key} parameter interpolation
  */
 export function t(key, params = {}) {
   const dict = translations[currentLanguage] || translations.en;
@@ -848,15 +848,15 @@ export function t(key, params = {}) {
 }
 
 /**
- * Aplica as traduções em todos os elementos estáticos do DOM
+ * Applies translations to all static DOM elements
  */
 export function applyTranslations() {
   document.documentElement.lang = currentLanguage === 'pt-BR' ? 'pt-BR' : 'en';
 
-  // Atualiza título da aba
+  // Update tab title
   document.title = t('page_title');
 
-  // Elementos com data-i18n (texto / html simples)
+  // Elements with data-i18n (plain text / html)
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n');
     if (key) {
@@ -864,7 +864,7 @@ export function applyTranslations() {
     }
   });
 
-  // Elementos com data-i18n-title (tooltip / title)
+  // Elements with data-i18n-title (tooltip / title)
   document.querySelectorAll('[data-i18n-title]').forEach((el) => {
     const key = el.getAttribute('data-i18n-title');
     if (key) {
@@ -872,7 +872,7 @@ export function applyTranslations() {
     }
   });
 
-  // Elementos com data-i18n-placeholder
+  // Elements with data-i18n-placeholder
   document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
     const key = el.getAttribute('data-i18n-placeholder');
     if (key) {
@@ -880,19 +880,19 @@ export function applyTranslations() {
     }
   });
 
-  // Atualiza o botão e menu seletor de idioma no topo
+  // Update language selector button and menu in header
   const currentLangLabel = document.getElementById('currentLangLabel');
   if (currentLangLabel) {
     currentLangLabel.textContent = currentLanguage === 'pt-BR' ? 'PT-BR' : 'EN';
   }
 
-  // Atualiza campo select de idioma dentro do modal de configurações
+  // Update language select field inside settings modal
   const inputModalLanguage = document.getElementById('inputModalLanguage');
   if (inputModalLanguage && inputModalLanguage.value !== currentLanguage) {
     inputModalLanguage.value = currentLanguage;
   }
 
-  // Atualiza itens do dropdown
+  // Update dropdown items
   document.querySelectorAll('.lang-dropdown-item').forEach((item) => {
     const itemLang = item.getAttribute('data-lang');
     const isActive = itemLang === currentLanguage;
@@ -905,7 +905,7 @@ export function applyTranslations() {
 }
 
 /**
- * Define o idioma ativo e notifica os componentes
+ * Sets active language and notifies components
  */
 export function setLanguage(newLang, notify = true) {
   const targetLang = (newLang === 'pt-BR' || newLang === 'pt') ? 'pt-BR' : 'en';
@@ -923,7 +923,7 @@ export function setLanguage(newLang, notify = true) {
 }
 
 /**
- * Inicializa o subsistema de internacionalização
+ * Initializes internationalization subsystem
  */
 export function initI18n(initialBackendLang = null) {
   let saved = null;
@@ -931,7 +931,7 @@ export function initI18n(initialBackendLang = null) {
     saved = localStorage.getItem(STORAGE_LANG_KEY);
   } catch {}
 
-  // Prioridade: 1) Preferência salva no localStorage, 2) Configuração do backend, 3) Inglês (padrão)
+  // Priority: 1) Preference saved in localStorage, 2) Backend configuration, 3) English (default)
   const defaultLang = saved || initialBackendLang || 'en';
   setLanguage(defaultLang, false);
 }

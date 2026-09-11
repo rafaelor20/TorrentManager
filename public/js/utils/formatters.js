@@ -1,5 +1,5 @@
 /**
- * Utilitários de formatação de dados e tradução de status para o TorrentManager
+ * Data formatting utilities and status mapping for TorrentManager
  */
 
 import { t, formatNumber, formatTime } from './i18n.js';

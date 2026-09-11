@@ -10,7 +10,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
   router.use(express.json({ limit: '100mb' }));
   router.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-  // Obter status geral da aplicação e do cliente
+  // Get general application and client status
   router.get('/status', (_req: Request, res: Response) => {
     const infoCliente = torrentClient.obterInfo ? torrentClient.obterInfo() : null;
     const configAtual = ConfigService.carregar();
@@ -40,7 +40,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     });
   });
 
-  // Obter configurações completas atuais
+  // Get current complete settings
   router.get('/config', (_req: Request, res: Response) => {
     const config = ConfigService.carregar();
     res.json({
@@ -62,7 +62,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     });
   });
 
-  // Salvar configurações no arquivo data/config.json
+  // Save settings to data/config.json file
   router.post('/config', (req: Request, res: Response) => {
     try {
       const { host, port, username, password, useHttps, timeoutMs, refreshInterval, language } = req.body || {};
@@ -77,7 +77,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         refreshInterval: typeof refreshInterval === 'number' ? refreshInterval : Number(refreshInterval) || configAtual.qbittorrent.refreshInterval,
       };
 
-      // Só substitui a senha se enviada uma nova
+      // Only replace password if a new one is provided
       if (typeof password === 'string' && password !== '') {
         novoQbitConfig.password = password;
       }
@@ -92,7 +92,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
 
       const salva = ConfigService.salvar(payloadSalvar);
       
-      // Atualiza o cliente instanciado de forma polimórfica
+      // Polymorphically update instantiated client
       if (torrentClient.atualizarConfig) {
         torrentClient.atualizarConfig(salva.qbittorrent);
       }
@@ -119,7 +119,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Conectar / Testar conexão com a API do cliente BitTorrent
+  // Connect / Test connection with BitTorrent client API
   router.post('/client/connect', async (req: Request, res: Response) => {
     try {
       const { host, port, username, password, useHttps, timeoutMs, refreshInterval, salvarConfig, language } = req.body || {};
@@ -170,7 +170,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Desconectar do cliente BitTorrent
+  // Disconnect from BitTorrent client
   router.post('/client/disconnect', async (_req: Request, res: Response) => {
     try {
       if (torrentClient.desconectar) {
@@ -189,7 +189,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Listar torrents
+  // List torrents
   router.get('/torrents', async (_req: Request, res: Response) => {
     try {
       const torrents = await torrentClient.listarTorrents();
@@ -206,7 +206,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Listar arquivos do torrent
+  // List torrent files
   router.get('/torrents/:hash/files', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;
@@ -218,7 +218,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         files: files || [],
       });
     } catch (err: any) {
-      console.warn(`[Routes] Aviso ao listar arquivos do hash ${req.params.hash}:`, err?.message || err);
+      console.warn(`[Routes] Warning while listing files for hash ${req.params.hash}:`, err?.message || err);
       res.json({
         sucesso: false,
         erro: err?.message || 'Erro ao listar arquivos',
@@ -228,7 +228,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Obter arquivos de múltiplos torrents em lote de forma otimizada
+  // Efficiently fetch files from multiple torrents in batch
   router.post('/torrents/batch-files', async (req: Request, res: Response) => {
     try {
       const { hashes } = req.body || {};
@@ -245,11 +245,11 @@ export function createRouter(torrentClient: TorrentClient): Router {
         try {
           filesByHash = await torrentClient.listarArquivosEmLote(hashes.map(String));
         } catch (err: any) {
-          console.warn('[Routes] Falha no método listarArquivosEmLote, usando fallback:', err?.message || err);
+          console.warn('[Routes] Batch file retrieval failed, using fallback:', err?.message || err);
         }
       }
 
-      // Se filesByHash ainda estiver vazio, preenche com fallback seguro
+      // If filesByHash is still empty, populate with safe fallback
       if (!filesByHash || Object.keys(filesByHash).length === 0) {
         filesByHash = {};
         const CONCURRENCY_LIMIT = 4;
@@ -261,7 +261,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
                 const files = await torrentClient.listarArquivos(String(h));
                 filesByHash[h] = files || [];
               } catch (err: any) {
-                console.warn(`[Routes] Erro ao listar arquivos do hash ${h}:`, err?.message || err);
+                console.warn(`[Routes] Error listing files for hash ${h}:`, err?.message || err);
                 filesByHash[h] = [];
               }
             })
@@ -274,7 +274,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         filesByHash,
       });
     } catch (err: any) {
-      console.error('[Routes] Erro em batch-files:', err?.message || err);
+      console.error('[Routes] Error in batch-files:', err?.message || err);
       res.json({
         sucesso: false,
         erro: err?.message || 'Erro ao obter arquivos em lote',
@@ -283,7 +283,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Aplicar prioridades aos arquivos do torrent de forma agnóstica (Etapa 9 & 13)
+  // Agnostically apply priorities to torrent files
   router.post('/torrents/:hash/priority', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;
@@ -297,7 +297,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         });
       }
 
-      // Suporte a envio de marcados (prio 1) e desmarcados (prio 0)
+      // Support submitting marked (prio 1) and unmarked (prio 0)
       if (Array.isArray(marcadosIndices) || Array.isArray(desmarcadosIndices)) {
         const marcados = Array.isArray(marcadosIndices) ? marcadosIndices.map(Number) : [];
         const desmarcados = Array.isArray(desmarcadosIndices) ? desmarcadosIndices.map(Number) : [];
@@ -347,7 +347,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         });
       }
 
-      // Suporte a envio direto de lista de índices com prioridade fixa
+      // Support direct index list with fixed priority
       if (Array.isArray(indices) && typeof prioridade === 'number') {
         const ok = await torrentClient.alterarPrioridades(hash, indices.map(Number), prioridade);
         return res.json({
@@ -361,7 +361,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         erro: 'Nenhuma alteração de prioridade informada no corpo da requisição.',
       });
     } catch (err: any) {
-      console.error('[Routes] Erro ao aplicar prioridades:', err);
+      console.error('[Routes] Error applying priorities:', err);
       return res.status(500).json({
         sucesso: false,
         erro: err?.message || 'Erro de comunicação ao aplicar prioridades no cliente BitTorrent.',
@@ -369,7 +369,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
-  // Abrir pasta do arquivo no gerenciador de arquivos do sistema operacional nativo
+  // Open file directory in native OS file manager
   router.post('/torrents/:hash/files/:index/open-folder', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;
@@ -394,7 +394,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         erro: 'Operação não suportada pelo cliente atual.',
       });
     } catch (err: any) {
-      console.error('[Routes] Erro ao abrir pasta do arquivo:', err);
+      console.error('[Routes] Error opening file directory:', err);
       return res.status(500).json({
         sucesso: false,
         erro: err?.message || 'Erro ao abrir pasta do arquivo no sistema operacional.',

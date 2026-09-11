@@ -29,56 +29,56 @@ export interface FileDeletionResult {
 }
 
 /**
- * Interface de abstração agnóstica para clientes BitTorrent (qBittorrent, Transmission, Deluge, etc.)
+ * Agnostic abstraction interface for BitTorrent clients (qBittorrent, Transmission, Deluge, etc.)
  */
 export interface TorrentClient {
   /**
-   * Retorna o nome identificador do cliente (ex: 'qBittorrent', 'Transmission', 'Deluge')
+   * Returns client identifier name (e.g., 'qBittorrent', 'Transmission', 'Deluge')
    */
   obterNome(): string;
 
   /**
-   * Retorna o identificador único do provedor/plugin (ex: 'qbittorrent', 'transmission')
+   * Returns unique identifier of provider/plugin (e.g., 'qbittorrent', 'transmission')
    */
   obterId?(): string;
 
   /**
-   * Verifica se o cliente está atualmente conectado e autenticado
+   * Checks whether the client is currently connected and authenticated
    */
   estaConectado(): boolean;
 
   /**
-   * Estabelece conexão e autenticação com a API do cliente BitTorrent
+   * Establishes connection and authentication with BitTorrent client API
    */
   conectar(config?: TorrentClientConfig): Promise<boolean>;
 
   /**
-   * Encerra a sessão ativa com o cliente BitTorrent
+   * Closes active session with BitTorrent client
    */
   desconectar?(): Promise<void>;
 
   /**
-   * Lista todos os torrents disponíveis no cliente
+   * Lists all torrents available in client
    */
   listarTorrents(): Promise<Torrent[]>;
 
   /**
-   * Lista os arquivos contidos em um torrent específico
-   * @param torrentHash Identificador hash do torrent
+   * Lists files contained within a specific torrent
+   * @param torrentHash Torrent hash identifier
    */
   listarArquivos(torrentHash: string): Promise<TorrentFile[]>;
 
   /**
-   * Lista os arquivos de múltiplos torrents em lote
-   * @param torrentHashes Lista de hashes de torrents
+   * Lists files of multiple torrents in batch
+   * @param torrentHashes List of torrent hashes
    */
   listarArquivosEmLote?(torrentHashes: string[]): Promise<Record<string, TorrentFile[]>>;
 
   /**
-   * Altera a prioridade de download de arquivos dentro de um torrent
-   * @param torrentHash Identificador hash do torrent
-   * @param fileIndices Índices dos arquivos dentro do torrent
-   * @param prioridade Nova prioridade a ser atribuída
+   * Changes download priority of files within a torrent
+   * @param torrentHash Torrent hash identifier
+   * @param fileIndices File indices within the torrent
+   * @param prioridade New priority to assign
    */
   alterarPrioridades(
     torrentHash: string,
@@ -87,8 +87,8 @@ export interface TorrentClient {
   ): Promise<boolean>;
 
   /**
-   * Aplica prioridades em lote separando marcados (download normal) e desmarcados (não baixar),
-   * com opção de apagar os arquivos físicos desativados do disco.
+   * Applies priorities in batch separating marked (normal download) and unmarked (do not download),
+   * with the option to delete disabled physical files from disk.
    */
   aplicarPrioridadesEmLote?(
     torrentHash: string,
@@ -98,7 +98,7 @@ export interface TorrentClient {
   ): Promise<BatchPriorityResult>;
 
   /**
-   * Exclui arquivos físicos do disco associados aos índices especificados do torrent
+   * Deletes physical files from disk associated with specified torrent indices
    */
   apagarArquivos?(
     torrentHash: string,
@@ -106,7 +106,7 @@ export interface TorrentClient {
   ): Promise<FileDeletionResult>;
 
   /**
-   * Abre a pasta do arquivo no gerenciador de arquivos do sistema operacional nativo
+   * Opens file directory in native operating system file manager
    */
   abrirPastaArquivo?(
     torrentHash: string,
@@ -114,17 +114,17 @@ export interface TorrentClient {
   ): Promise<{ sucesso: boolean; mensagem?: string; caminho?: string; naoBaixado?: boolean }>;
 
   /**
-   * Retorna informações de diagnóstico e versões do cliente (sem acoplamento direto)
+   * Returns diagnostic information and client versions (loosely coupled)
    */
   obterInfo?(): Record<string, any> | null;
 
   /**
-   * Atualiza a configuração em tempo de execução
+   * Updates configuration at runtime
    */
   atualizarConfig?(config: Partial<TorrentClientConfig>): void;
 
   /**
-   * Retorna o status detalhado da conexão
+   * Returns detailed connection status
    */
   obterStatusConexao(): ConnectionStatus;
 }

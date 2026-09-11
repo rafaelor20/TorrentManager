@@ -5,15 +5,15 @@ import { QBittorrentProvider } from './qbittorrent/QBittorrentProvider.js';
 import { MockTorrentProvider } from './mock/MockTorrentProvider.js';
 
 /**
- * Registro central de Provedores / Plugins de clientes BitTorrent.
- * Isola completamente as regras de negócio de qualquer detalhe de implementação de cliente específico.
+ * Central registry of BitTorrent client Providers / Plugins.
+ * Completely isolates business rules from specific client implementation details.
  */
 export class TorrentClientRegistry {
   private static provedores: Map<string, TorrentClientProvider> = new Map();
   private static inicializado: boolean = false;
 
   /**
-   * Inicializa o registro com os provedores padrão integrados
+   * Initializes the registry with default built-in providers
    */
   private static garantirInicializado(): void {
     if (!this.inicializado) {
@@ -24,17 +24,17 @@ export class TorrentClientRegistry {
   }
 
   /**
-   * Registra um novo provedor / plugin de cliente BitTorrent
+   * Registers a new BitTorrent client provider / plugin
    */
   static registrarProvedor(provedor: TorrentClientProvider): void {
     if (!provedor || !provedor.id) {
-      throw new Error('Provedor inválido: o identificador "id" é obrigatório.');
+      throw new Error('Invalid provider: identifier "id" is required.');
     }
     this.provedores.set(provedor.id.toLowerCase(), provedor);
   }
 
   /**
-   * Obtém um provedor pelo seu ID
+   * Gets a provider by its ID
    */
   static obterProvedor(id: string): TorrentClientProvider | undefined {
     this.garantirInicializado();
@@ -42,20 +42,20 @@ export class TorrentClientRegistry {
   }
 
   /**
-   * Cria uma instância de TorrentClient a partir do ID do provedor registrado
+   * Creates a TorrentClient instance from registered provider ID
    */
   static criarCliente(id: string, config?: Partial<TorrentClientConfig>): TorrentClient {
     this.garantirInicializado();
     const provedor = this.obterProvedor(id);
     if (!provedor) {
       const suportados = this.listarIdsProvedores().join(', ');
-      throw new Error(`Provedor de cliente BitTorrent não encontrado: "${id}". Provedores disponíveis: [${suportados}].`);
+      throw new Error(`BitTorrent client provider not found: "${id}". Available providers: [${suportados}].`);
     }
     return provedor.criarCliente(config);
   }
 
   /**
-   * Retorna os metadados de todos os provedores registrados
+   * Returns metadata for all registered providers
    */
   static listarProvedores(): TorrentClientProviderInfo[] {
     this.garantirInicializado();
@@ -63,7 +63,7 @@ export class TorrentClientRegistry {
   }
 
   /**
-   * Retorna apenas os IDs dos provedores disponíveis
+   * Returns IDs of available providers only
    */
   static listarIdsProvedores(): string[] {
     this.garantirInicializado();
