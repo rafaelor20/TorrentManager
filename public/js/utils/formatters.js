@@ -2,6 +2,10 @@
  * Utilitários de formatação de dados e tradução de status para o TorrentManager
  */
 
+import { t, formatNumber, formatTime } from './i18n.js';
+
+export { formatNumber, formatTime };
+
 export function formatarTamanho(bytes) {
   if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
   const unidades = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -19,45 +23,48 @@ export function mapearStatusLegivel(status, rawState) {
   if (rawState) {
     switch (rawState) {
       case 'downloading':
-        return { label: 'Baixando', classe: 'downloading' };
+        return { label: t('status_downloading'), classe: 'downloading' };
       case 'forcedDL':
-        return { label: 'Baixando (Forçado)', classe: 'downloading' };
+        return { label: t('status_forcedDL'), classe: 'downloading' };
       case 'stalledDL':
-        return { label: 'Baixando (Pendente)', classe: 'downloading' };
+        return { label: t('status_stalledDL'), classe: 'downloading' };
       case 'metaDL':
+        return { label: t('status_metaDL'), classe: 'downloading' };
       case 'forcedMetaDL':
-        return { label: 'Baixando Metadados', classe: 'downloading' };
+        return { label: t('status_forcedMetaDL'), classe: 'downloading' };
       case 'uploading':
-        return { label: 'Enviando (Seed)', classe: 'uploading' };
+        return { label: t('status_uploading'), classe: 'uploading' };
       case 'forcedUP':
-        return { label: 'Enviando (Forçado)', classe: 'uploading' };
+        return { label: t('status_forcedUP'), classe: 'uploading' };
       case 'stalledUP':
-        return { label: 'Enviando (Sem Conexão)', classe: 'uploading' };
+        return { label: t('status_stalledUP'), classe: 'uploading' };
       case 'pausedDL':
-        return { label: 'Pausado', classe: 'paused' };
+        return { label: t('status_pausedDL'), classe: 'paused' };
       case 'stoppedDL':
-        return { label: 'Parado', classe: 'paused' };
+        return { label: t('status_stoppedDL'), classe: 'paused' };
       case 'pausedUP':
+        return { label: t('status_pausedUP'), classe: 'completed' };
       case 'stoppedUP':
-        return { label: 'Concluído (Pausado)', classe: 'completed' };
+        return { label: t('status_stoppedUP'), classe: 'completed' };
       case 'queuedDL':
-        return { label: 'Em Fila (Download)', classe: 'queued' };
+        return { label: t('status_queuedDL'), classe: 'queued' };
       case 'queuedUP':
-        return { label: 'Em Fila (Envio)', classe: 'queued' };
+        return { label: t('status_queuedUP'), classe: 'queued' };
       case 'queuedForChecking':
-        return { label: 'Em Fila (Verificação)', classe: 'queued' };
+        return { label: t('status_queuedForChecking'), classe: 'queued' };
       case 'checkingDL':
       case 'checkingUP':
       case 'checkingResumeData':
-        return { label: 'Verificando', classe: 'checking' };
+      case 'checking':
+        return { label: t('status_checking'), classe: 'checking' };
       case 'allocating':
-        return { label: 'Alocando Espaço', classe: 'checking' };
+        return { label: t('status_allocating'), classe: 'checking' };
       case 'moving':
-        return { label: 'Movendo Arquivos', classe: 'checking' };
+        return { label: t('status_moving'), classe: 'checking' };
       case 'error':
-        return { label: 'Erro', classe: 'error' };
+        return { label: t('status_error'), classe: 'error' };
       case 'missingFiles':
-        return { label: 'Arquivos Ausentes', classe: 'error' };
+        return { label: t('status_missingFiles'), classe: 'error' };
       default:
         break;
     }
@@ -65,36 +72,36 @@ export function mapearStatusLegivel(status, rawState) {
 
   switch (status) {
     case 'downloading':
-      return { label: 'Baixando', classe: 'downloading' };
+      return { label: t('status_downloading'), classe: 'downloading' };
     case 'uploading':
-      return { label: 'Enviando (Seed)', classe: 'uploading' };
+      return { label: t('status_uploading'), classe: 'uploading' };
     case 'paused':
-      return { label: 'Pausado', classe: 'paused' };
+      return { label: t('status_paused'), classe: 'paused' };
     case 'completed':
-      return { label: 'Concluído', classe: 'completed' };
+      return { label: t('status_completed'), classe: 'completed' };
     case 'queued':
-      return { label: 'Em Fila', classe: 'queued' };
+      return { label: t('status_queued'), classe: 'queued' };
     case 'checking':
-      return { label: 'Verificando', classe: 'checking' };
+      return { label: t('status_checking'), classe: 'checking' };
     case 'error':
-      return { label: 'Erro', classe: 'error' };
+      return { label: t('status_error'), classe: 'error' };
     default:
-      return { label: rawState || 'Desconhecido', classe: 'paused' };
+      return { label: rawState || t('status_unknown'), classe: 'paused' };
   }
 }
 
 export function formatarPrioridade(prio) {
   switch (Number(prio)) {
     case 0:
-      return { label: 'Não baixar / Ignorado', classe: 'prio-skip' };
+      return { label: t('prio_skip'), classe: 'prio-skip' };
     case 1:
-      return { label: 'Normal', classe: 'prio-normal' };
+      return { label: t('prio_normal'), classe: 'prio-normal' };
     case 6:
-      return { label: 'Alta', classe: 'prio-high' };
+      return { label: t('prio_high'), classe: 'prio-high' };
     case 7:
-      return { label: 'Máxima', classe: 'prio-maximal' };
+      return { label: t('prio_maximal'), classe: 'prio-maximal' };
     default:
-      return { label: `Prioridade ${prio}`, classe: 'prio-normal' };
+      return { label: t('prio_custom', { prio }), classe: 'prio-normal' };
   }
 }
 

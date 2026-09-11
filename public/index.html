@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TorrentManager — Gerenciador de BitTorrent</title>
+  <title data-i18n="page_title">TorrentManager — BitTorrent Manager</title>
   <!-- Favicon / Ícone da Aba do Navegador (Compatível com Windows, Linux e macOS) -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
@@ -38,18 +38,41 @@
       <div class="header-badges">
         <div class="badge status-pill active" id="systemStatusBadge">
           <span class="indicator-dot"></span>
-          <span id="systemStatusText">Aplicação iniciada</span>
+          <span id="systemStatusText" data-i18n="status_started">Application started</span>
         </div>
         <div class="badge client-pill" id="clientBadge">
           <span class="client-icon">⚡</span>
           <span id="activeClientName">qBittorrent</span>
         </div>
-        <button class="btn btn-secondary btn-header-config" id="btnAbrirConfigModal" title="Abrir tela de configurações da aplicação e do cliente BitTorrent">
+
+        <!-- Seletor de Idioma / Language Selector -->
+        <div class="lang-selector-container">
+          <button type="button" class="btn btn-secondary btn-header-lang" id="btnHeaderLang" title="Change language" data-i18n-title="lang_btn_title" aria-haspopup="true" aria-expanded="false">
+            <span class="lang-icon">🌐</span>
+            <span id="currentLangLabel">EN</span>
+            <svg class="lang-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="lang-dropdown" id="langDropdown" style="display: none;">
+            <button type="button" class="lang-dropdown-item is-active" data-lang="en">
+              <span class="lang-flag">🇺🇸</span>
+              <span class="lang-name">English</span>
+              <span class="lang-badge">Default</span>
+              <span class="lang-check">✓</span>
+            </button>
+            <button type="button" class="lang-dropdown-item" data-lang="pt-BR">
+              <span class="lang-flag">🇧🇷</span>
+              <span class="lang-name">Português (BR)</span>
+              <span class="lang-check" style="display: none;">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary btn-header-config" id="btnAbrirConfigModal" title="Open application and BitTorrent client settings" data-i18n-title="btn_config_title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          <span>Configurações</span>
+          <span data-i18n="settings">Settings</span>
         </button>
       </div>
     </header>
@@ -66,49 +89,59 @@
               </svg>
             </div>
             <div>
-              <h3>Tela de Configurações</h3>
-              <p class="modal-subtitle">Configurações persistidas permanentemente em <code>data/config.json</code></p>
+              <h3 data-i18n="modal_config_title">Settings</h3>
+              <p class="modal-subtitle" data-i18n="modal_config_subtitle">Settings permanently persisted in <code>data/config.json</code></p>
             </div>
           </div>
-          <button class="modal-close-btn" id="btnFecharModalConfig" title="Fechar">&times;</button>
+          <button class="modal-close-btn" id="btnFecharModalConfig" title="Close" data-i18n-title="modal_close">&times;</button>
         </div>
 
         <form id="formModalConfig" class="modal-form">
           <div class="form-row form-row-split">
             <div class="form-group">
-              <label for="inputModalHost">Endereço do qBittorrent (Host / IP):</label>
-              <input type="text" id="inputModalHost" class="form-input" placeholder="localhost ou 127.0.0.1" required>
+              <label for="inputModalHost" data-i18n="label_host">qBittorrent Address (Host / IP):</label>
+              <input type="text" id="inputModalHost" class="form-input" placeholder="localhost or 127.0.0.1" data-i18n-placeholder="placeholder_host" required>
             </div>
             <div class="form-group" style="max-width: 130px;">
-              <label for="inputModalPort">Porta:</label>
+              <label for="inputModalPort" data-i18n="label_port">Port:</label>
               <input type="number" id="inputModalPort" class="form-input" placeholder="8877" required>
             </div>
           </div>
 
           <div class="form-row form-row-split">
             <div class="form-group">
-              <label for="inputModalUsername">Usuário:</label>
+              <label for="inputModalUsername" data-i18n="label_username">Username:</label>
               <input type="text" id="inputModalUsername" class="form-input" placeholder="admin" autocomplete="username">
             </div>
             <div class="form-group">
-              <label for="inputModalPassword">Senha:</label>
+              <label for="inputModalPassword" data-i18n="label_password">Password:</label>
               <input type="password" id="inputModalPassword" class="form-input" placeholder="••••••••" autocomplete="current-password">
             </div>
           </div>
 
           <div class="form-row form-row-split">
             <div class="form-group">
-              <label for="inputModalRefreshInterval">Intervalo de Atualização Automática:</label>
-              <select id="inputModalRefreshInterval" class="form-input form-select">
-                <option value="0">Desativado (Atualização apenas manual)</option>
-                <option value="5">A cada 5 segundos (Muito rápido)</option>
-                <option value="10" selected>A cada 10 segundos (Recomendado)</option>
-                <option value="30">A cada 30 segundos</option>
-                <option value="60">A cada 1 minuto (Econômico)</option>
+              <label for="inputModalLanguage" data-i18n="label_interface_language">Interface Language:</label>
+              <select id="inputModalLanguage" class="form-input form-select">
+                <option value="en" data-i18n="lang_en">English (Default)</option>
+                <option value="pt-BR" data-i18n="lang_pt_br">Português (Brasil)</option>
               </select>
             </div>
+            <div class="form-group">
+              <label for="inputModalRefreshInterval" data-i18n="label_refresh_interval">Auto-Refresh Interval:</label>
+              <select id="inputModalRefreshInterval" class="form-input form-select">
+                <option value="0" data-i18n="opt_refresh_disabled">Disabled (Manual refresh only)</option>
+                <option value="5" data-i18n="opt_refresh_5s">Every 5 seconds (Very fast)</option>
+                <option value="10" data-i18n="opt_refresh_10s" selected>Every 10 seconds (Recommended)</option>
+                <option value="30" data-i18n="opt_refresh_30s">Every 30 seconds</option>
+                <option value="60" data-i18n="opt_refresh_60s">Every 1 minute (Economic)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row form-row-split">
             <div class="form-group" style="max-width: 150px;">
-              <label for="inputModalTimeout">Timeout (ms):</label>
+              <label for="inputModalTimeout" data-i18n="label_timeout">Timeout (ms):</label>
               <input type="number" id="inputModalTimeout" class="form-input" placeholder="5000" min="1000" step="500">
             </div>
           </div>
@@ -117,20 +150,20 @@
             <label class="checkbox-container">
               <input type="checkbox" id="inputModalHttps">
               <span class="custom-checkbox"></span>
-              <span>Conexão Segura com HTTPS (SSL/TLS)</span>
+              <span data-i18n="label_https">Secure connection with HTTPS (SSL/TLS)</span>
             </label>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn btn-outline" id="btnModalRestaurar">
-              <span>Restaurar Padrões</span>
+              <span data-i18n="btn_restore_defaults">Restore Defaults</span>
             </button>
             <div class="modal-footer-actions">
               <button type="button" class="btn btn-secondary" id="btnModalTestar">
-                <span>Testar Conexão</span>
+                <span data-i18n="btn_test_connection">Test Connection</span>
               </button>
               <button type="submit" class="btn btn-primary" id="btnModalSalvar">
-                <span>Salvar Configurações</span>
+                <span data-i18n="btn_save_config">Save Settings</span>
               </button>
             </div>
           </div>
@@ -151,31 +184,31 @@
               </svg>
             </div>
             <div>
-              <h3>Apagar Arquivos do Sistema de Arquivos?</h3>
-              <p class="modal-subtitle">Você marcou <strong id="modalExclusaoQtdDesativados">0</strong> arquivo(s) como <span class="badge-tag-inactive">Não Baixar (Desativados)</span></p>
+              <h3 data-i18n="modal_delete_title">Delete Files from File System?</h3>
+              <p class="modal-subtitle"><span data-i18n="modal_delete_subtitle_marked">You marked</span> <strong id="modalExclusaoQtdDesativados">0</strong> <span data-i18n="modal_delete_subtitle_files">file(s) as</span> <span class="badge-tag-inactive" data-i18n="badge_skip">Do Not Download (Disabled)</span></p>
             </div>
           </div>
-          <button class="modal-close-btn" id="btnFecharModalExclusao" title="Fechar">&times;</button>
+          <button class="modal-close-btn" id="btnFecharModalExclusao" title="Close" data-i18n-title="modal_close">&times;</button>
         </div>
 
         <div class="modal-confirm-body">
-          <p class="modal-confirm-text">
-            Deseja também <strong>apagar definitivamente do disco</strong> os arquivos desativados que já foram parcial ou totalmente baixados?
+          <p class="modal-confirm-text" data-i18n="modal_delete_body">
+            Do you also want to permanently delete from disk the disabled files that were already partially or fully downloaded?
           </p>
           
           <div class="modal-confirm-info-box">
             <div class="confirm-info-item danger-item">
               <div class="confirm-info-icon">🗑️</div>
               <div class="confirm-info-content">
-                <strong>Sim, Apagar do Disco:</strong>
-                <p>Define a prioridade como "Não Baixar" e remove os arquivos físicos do computador, liberando espaço em disco.</p>
+                <strong data-i18n="confirm_danger_title">Yes, Delete from Disk:</strong>
+                <p data-i18n="confirm_danger_desc">Sets priority to "Do Not Download" and removes physical files from computer, freeing up disk space.</p>
               </div>
             </div>
             <div class="confirm-info-item safe-item">
               <div class="confirm-info-icon">📁</div>
               <div class="confirm-info-content">
-                <strong>Não, Apenas Desativar:</strong>
-                <p>Define a prioridade como "Não Baixar" no cliente BitTorrent, mas preserva os arquivos físicos já existentes no computador.</p>
+                <strong data-i18n="confirm_safe_title">No, Only Disable:</strong>
+                <p data-i18n="confirm_safe_desc">Sets priority to "Do Not Download" in BitTorrent client, but preserves existing physical files on computer.</p>
               </div>
             </div>
           </div>
@@ -183,14 +216,14 @@
 
         <div class="modal-footer modal-footer-confirm">
           <button type="button" class="btn btn-outline" id="btnModalExclusaoCancelar">
-            <span>Cancelar</span>
+            <span data-i18n="btn_cancel">Cancel</span>
           </button>
           <div class="modal-footer-actions">
             <button type="button" class="btn btn-secondary" id="btnModalExclusaoApenasDesativar">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              <span>Não, Apenas Desativar</span>
+              <span data-i18n="btn_only_disable">No, Only Disable</span>
             </button>
             <button type="button" class="btn btn-danger" id="btnModalExclusaoApagarFisicos">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -199,7 +232,7 @@
                 <line x1="10" y1="11" x2="10" y2="17"></line>
                 <line x1="14" y1="11" x2="14" y2="17"></line>
               </svg>
-              <span>Sim, Apagar do Disco</span>
+              <span data-i18n="btn_delete_from_disk">Yes, Delete from Disk</span>
             </button>
           </div>
         </div>
@@ -210,8 +243,8 @@
     <div id="toastNotification" class="toast-alert" style="display: none;">
       <div class="toast-icon" id="toastIcon">ℹ</div>
       <div class="toast-body">
-        <strong class="toast-title" id="toastTitle">Notificação</strong>
-        <p class="toast-message" id="toastMessage">Mensagem do sistema</p>
+        <strong class="toast-title" id="toastTitle">Notification</strong>
+        <p class="toast-message" id="toastMessage">System message</p>
       </div>
       <button class="toast-close" id="toastCloseBtn">&times;</button>
     </div>
@@ -222,40 +255,40 @@
       <section class="torrents-section">
         <div class="section-header-bar">
           <div>
-            <h2 class="section-main-title">Gerenciador de Torrents</h2>
-            <p class="section-subtitle">Clique em um torrent para carregar, filtrar e selecionar arquivos</p>
+            <h2 class="section-main-title" data-i18n="section_torrents_title">Torrent Manager</h2>
+            <p class="section-subtitle" data-i18n="section_torrents_subtitle">Click on a torrent to load, filter, and select files</p>
           </div>
 
           <div class="section-actions">
-            <button class="btn btn-primary" id="btnRecarregarTorrents" title="Atualização manual da lista">
+            <button class="btn btn-primary" id="btnRecarregarTorrents" title="Manual list refresh" data-i18n-title="btn_refresh_torrents_title">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              <span id="btnRecarregarText">Atualizar Torrents</span>
+              <span id="btnRecarregarText" data-i18n="btn_refresh_torrents">Refresh Torrents</span>
             </button>
           </div>
         </div>
 
         <!-- Barra de Estatísticas Rápidas dos Torrents (Filtros Clicáveis por Status) -->
         <div class="quick-stats-grid mb-4" id="torrentStatusStatsGrid">
-          <div class="stat-box is-active" data-filter="all" role="button" tabindex="0" title="Exibir todos os torrents">
-            <span class="stat-label">Total de Torrents</span>
+          <div class="stat-box is-active" data-filter="all" role="button" tabindex="0" title="Show all torrents" data-i18n-title="stat_total_torrents_title">
+            <span class="stat-label" data-i18n="stat_total_torrents">Total Torrents</span>
             <span class="stat-value" id="statTotalTorrents">0</span>
           </div>
-          <div class="stat-box stat-completed" data-filter="completed" role="button" tabindex="0" title="Filtrar por Concluídos / Upload (Seed)">
-            <span class="stat-label">Concluídos / Upload</span>
+          <div class="stat-box stat-completed" data-filter="completed" role="button" tabindex="0" title="Filter by Completed / Upload (Seed)" data-i18n-title="stat_completed_title">
+            <span class="stat-label" data-i18n="stat_completed">Completed / Seeding</span>
             <span class="stat-value" style="color: #34d399;" id="statCompletedTorrents">0</span>
           </div>
-          <div class="stat-box stat-downloading" data-filter="downloading" role="button" tabindex="0" title="Filtrar por Em Download">
-            <span class="stat-label">Em Download</span>
+          <div class="stat-box stat-downloading" data-filter="downloading" role="button" tabindex="0" title="Filter by Downloading" data-i18n-title="stat_downloading_title">
+            <span class="stat-label" data-i18n="stat_downloading">Downloading</span>
             <span class="stat-value highlight" id="statDownloadingTorrents">0</span>
           </div>
-          <div class="stat-box stat-paused" data-filter="paused" role="button" tabindex="0" title="Filtrar por Pausados">
-            <span class="stat-label">Pausados</span>
+          <div class="stat-box stat-paused" data-filter="paused" role="button" tabindex="0" title="Filter by Paused" data-i18n-title="stat_paused_title">
+            <span class="stat-label" data-i18n="stat_paused">Paused</span>
             <span class="stat-value" style="color: #fb7185;" id="statPausedTorrents">0</span>
           </div>
-          <div class="stat-box stat-size" data-filter="all" role="button" tabindex="0" title="Tamanho total (Clique para redefinir filtro para Todos)">
-            <span class="stat-label">Tamanho Total</span>
+          <div class="stat-box stat-size" data-filter="all" role="button" tabindex="0" title="Total size (Click to reset filter to All)" data-i18n-title="stat_total_size_title">
+            <span class="stat-label" data-i18n="stat_total_size">Total Size</span>
             <span class="stat-value" id="statTotalSize">0 B</span>
           </div>
         </div>
@@ -272,40 +305,41 @@
                 type="text" 
                 id="inputSearchTorrents" 
                 class="search-input" 
-                placeholder="Pesquisar torrents por nome, categoria ou hash..." 
+                placeholder="Search torrents by name, category, or hash..." 
+                data-i18n-placeholder="search_torrents_placeholder"
                 autocomplete="off"
               >
-              <button class="search-clear-btn" id="btnClearTorrentSearch" title="Limpar pesquisa" style="display: none;">
+              <button class="search-clear-btn" id="btnClearTorrentSearch" title="Clear search" data-i18n-title="btn_clear_search_title" style="display: none;">
                 &times;
               </button>
             </div>
 
             <div class="torrents-actions-right">
-              <button type="button" class="btn btn-outline btn-sm btn-toggle-category-group" id="btnToggleCategoryGroup" title="Exibir a lista dividida em blocos de cabeçalho por categoria">
+              <button type="button" class="btn btn-outline btn-sm btn-toggle-category-group" id="btnToggleCategoryGroup" title="Display list split into header blocks by category" data-i18n-title="btn_group_category_title">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
-                <span id="btnToggleCategoryGroupText">Agrupar por Categoria</span>
+                <span id="btnToggleCategoryGroupText" data-i18n="btn_group_category">Group by Category</span>
               </button>
 
-              <button type="button" class="btn btn-outline btn-sm btn-toggle-consolidated-category" id="btnToggleConsolidatedCategory" title="Consolidar todos os torrents de cada categoria em 1 único torrent virtual com arquivos unificados">
+              <button type="button" class="btn btn-outline btn-sm btn-toggle-consolidated-category" id="btnToggleConsolidatedCategory" title="Consolidate all torrents in each category into 1 virtual torrent with unified files" data-i18n-title="btn_consolidate_category_title">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
                   <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
                 </svg>
-                <span id="btnToggleConsolidatedCategoryText">Fundir como 1 Torrent</span>
+                <span id="btnToggleConsolidatedCategoryText" data-i18n="btn_consolidate_category">Merge as 1 Torrent</span>
               </button>
 
               <div class="search-stats-badge" id="torrentSearchStatsBadge">
                 <span class="search-badge-dot"></span>
-                <span id="torrentSearchResultCount">Exibindo todos os torrents</span>
+                <span id="torrentSearchResultCount" data-i18n="showing_all_torrents">Showing all torrents</span>
               </div>
             </div>
           </div>
 
           <!-- Barra de Pílulas de Categorias -->
           <div class="category-pills-container" id="torrentCategoryPillsContainer" style="display: none;">
-            <span class="category-pills-label">Categorias:</span>
+            <span class="category-pills-label" data-i18n="label_categories">Categories:</span>
             <div class="category-pills-list" id="torrentCategoryPillsList">
               <!-- Renderizado dinamicamente via JavaScript -->
             </div>
@@ -315,48 +349,48 @@
         <!-- Tabela / Lista de Torrents -->
         <div class="torrent-table-container glass-card">
           <div class="table-meta-bar">
-            <div class="table-count" id="tableCountText">Carregando lista de torrents...</div>
-            <div class="last-sync-time" id="lastSyncTime">Última sincronização: —</div>
+            <div class="table-count" id="tableCountText" data-i18n="table_count_loading">Loading torrents list...</div>
+            <div class="last-sync-time" id="lastSyncTime">Last sync: —</div>
           </div>
 
           <div class="table-responsive">
             <table class="torrent-table" id="torrentTable">
               <thead>
                 <tr id="torrentTableHeaderRow">
-                  <th class="th-action">Seleção</th>
-                  <th class="th-name sortable-th" data-col="name" title="Clique para ordenar por Nome">
+                  <th class="th-action" data-i18n="th_selection">Selection</th>
+                  <th class="th-name sortable-th" data-col="name" title="Click to sort by Name" data-i18n-title="th_name_title">
                     <div class="th-content">
-                      <span class="th-title-text">Nome</span>
+                      <span class="th-title-text" data-i18n="th_name">Name</span>
                       <span class="sort-arrow" data-sort-for="name">↕</span>
                     </div>
                   </th>
-                  <th class="th-category sortable-th" data-col="category" title="Clique para ordenar por Categoria">
+                  <th class="th-category sortable-th" data-col="category" title="Click to sort by Category" data-i18n-title="th_category_title">
                     <div class="th-content">
-                      <span class="th-title-text">Categoria</span>
+                      <span class="th-title-text" data-i18n="th_category">Category</span>
                       <span class="sort-arrow" data-sort-for="category">↕</span>
                     </div>
                   </th>
-                  <th class="th-status sortable-th" data-col="status" title="Clique para ordenar por Status">
+                  <th class="th-status sortable-th" data-col="status" title="Click to sort by Status" data-i18n-title="th_status_title">
                     <div class="th-content">
-                      <span class="th-title-text">Status</span>
+                      <span class="th-title-text" data-i18n="th_status">Status</span>
                       <span class="sort-arrow" data-sort-for="status">↕</span>
                     </div>
                   </th>
-                  <th class="th-progress sortable-th" data-col="progress" title="Clique para ordenar por Progresso">
+                  <th class="th-progress sortable-th" data-col="progress" title="Click to sort by Progress" data-i18n-title="th_progress_title">
                     <div class="th-content">
-                      <span class="th-title-text">Progresso</span>
+                      <span class="th-title-text" data-i18n="th_progress">Progress</span>
                       <span class="sort-arrow" data-sort-for="progress">↕</span>
                     </div>
                   </th>
-                  <th class="th-size sortable-th" data-col="size" title="Clique para ordenar por Tamanho">
+                  <th class="th-size sortable-th" data-col="size" title="Click to sort by Size" data-i18n-title="th_size_title">
                     <div class="th-content">
-                      <span class="th-title-text">Tamanho</span>
+                      <span class="th-title-text" data-i18n="th_size">Size</span>
                       <span class="sort-arrow" data-sort-for="size">↕</span>
                     </div>
                   </th>
-                  <th class="th-speeds sortable-th" data-col="speeds" title="Clique para ordenar por Velocidade">
+                  <th class="th-speeds sortable-th" data-col="speeds" title="Click to sort by Speed" data-i18n-title="th_speeds_title">
                     <div class="th-content">
-                      <span class="th-title-text">Velocidade</span>
+                      <span class="th-title-text" data-i18n="th_speeds">Speed</span>
                       <span class="sort-arrow" data-sort-for="speeds">↕</span>
                     </div>
                   </th>
@@ -364,11 +398,11 @@
               </thead>
               <tbody id="torrentsTableBody">
                 <tr class="empty-state-row">
-                  <td colspan="6">
+                  <td colspan="7">
                     <div class="empty-state">
                       <div class="empty-icon">⏳</div>
-                      <h4>Carregando torrents...</h4>
-                      <p>Consultando a camada de abstração do cliente BitTorrent...</p>
+                      <h4 data-i18n="empty_torrents_loading_title">Loading torrents...</h4>
+                      <p data-i18n="empty_torrents_loading_desc">Querying BitTorrent client abstraction layer...</p>
                     </div>
                   </td>
                 </tr>
@@ -385,38 +419,38 @@
             <div class="files-header-icon">📁</div>
             <div>
               <div class="badge-row">
-                <span class="badge file-badge">Arquivos do Torrent</span>
+                <span class="badge file-badge" data-i18n="badge_torrent_files">Torrent Files</span>
                 <span class="selected-torrent-status" id="selectedTorrentStatus">Status</span>
-                <span class="badge selection-badge" id="filesSelectionBadge">0 marcados</span>
+                <span class="badge selection-badge" id="filesSelectionBadge">0 selected</span>
               </div>
-              <h3 class="files-torrent-title" id="selectedTorrentName">Nome do Torrent</h3>
-              <p class="files-torrent-meta" id="selectedTorrentMeta">0 arquivos • 0 B no total</p>
+              <h3 class="files-torrent-title" id="selectedTorrentName">Torrent Name</h3>
+              <p class="files-torrent-meta" id="selectedTorrentMeta">0 files • 0 B total</p>
             </div>
           </div>
 
           <div class="section-actions">
-            <button class="btn btn-secondary" id="btnRecarregarArquivosTorrent" title="Recarregar estado e prioridades dos arquivos direto do qBittorrent">
+            <button class="btn btn-secondary" id="btnRecarregarArquivosTorrent" data-i18n-title="btn_reload_files_title" title="Reload file status and priorities directly from qBittorrent">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="refreshFilesIcon">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              <span id="btnRecarregarArquivosText">Atualizar Torrent</span>
+              <span id="btnRecarregarArquivosText" data-i18n="btn_reload_files">Refresh Torrent</span>
             </button>
 
-            <button class="btn btn-primary" id="btnSalvarPrioridades" title="Enviar e aplicar as prioridades configuradas ao qBittorrent">
+            <button class="btn btn-primary" id="btnSalvarPrioridades" data-i18n-title="btn_apply_priorities_title" title="Send and apply configured priorities to qBittorrent">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="savePrioIcon">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                 <polyline points="17 21 17 13 7 13 7 21"></polyline>
                 <polyline points="7 3 7 8 15 8"></polyline>
               </svg>
-              <span id="btnSalvarPrioridadesText">Aplicar Prioridades</span>
+              <span id="btnSalvarPrioridadesText" data-i18n="btn_apply_priorities">Apply Priorities</span>
             </button>
 
-            <button class="btn btn-secondary" id="btnFecharArquivos" title="Fechar visualização de arquivos">
+            <button class="btn btn-secondary" id="btnFecharArquivos" data-i18n-title="btn_close_files_title" title="Close files view">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
-              <span>Fechar Arquivos</span>
+              <span data-i18n="btn_close_files">Close Files</span>
             </button>
           </div>
         </div>
@@ -432,66 +466,67 @@
               type="text" 
               id="inputSearchFiles" 
               class="search-input" 
-              placeholder="Pesquisar termos no nome ou caminho (ex: gran turismo usa)..." 
+              data-i18n-placeholder="search_files_placeholder"
+              placeholder="Search terms in name or path (e.g. gran turismo usa)..." 
               autocomplete="off"
             >
-            <button class="search-clear-btn" id="btnClearSearch" title="Limpar pesquisa" style="display: none;">
+            <button class="search-clear-btn" id="btnClearSearch" data-i18n-title="btn_clear_search_title" title="Clear search" style="display: none;">
               &times;
             </button>
           </div>
 
           <!-- Ações Rápidas de Seleção em Massa (Etapa 8) -->
           <div class="bulk-actions-group">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnSelectAll" title="Marcar todos os arquivos visíveis">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnSelectAll" data-i18n-title="btn_select_all_title" title="Select all visible files">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              <span>Marcar Todos</span>
+              <span data-i18n="btn_select_all">Select All</span>
             </button>
 
-            <button type="button" class="btn btn-secondary btn-sm" id="btnDeselectAll" title="Desmarcar todos os arquivos visíveis">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnDeselectAll" data-i18n-title="btn_deselect_all_title" title="Deselect all visible files">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
-              <span>Desmarcar Todos</span>
+              <span data-i18n="btn_deselect_all">Deselect All</span>
             </button>
 
-            <button type="button" class="btn btn-secondary btn-sm" id="btnInvertSelection" title="Inverter seleção dos arquivos visíveis">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnInvertSelection" data-i18n-title="btn_invert_selection_title" title="Invert selection of visible files">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              <span>Inverter Seleção</span>
+              <span data-i18n="btn_invert_selection">Invert Selection</span>
             </button>
           </div>
 
           <!-- Filtros por Status e Prioridade dos Arquivos (Ativos, Inativos, Todos, Selecionados) -->
           <div class="priority-filters-group" id="priorityFiltersGroup">
-            <span class="filter-group-label">Status:</span>
+            <span class="filter-group-label" data-i18n="label_file_status">Status:</span>
 
-            <label class="filter-chip" title="Exibir todos os arquivos do torrent">
+            <label class="filter-chip" data-i18n-title="file_filter_all_title" title="Show all torrent files">
               <input type="radio" name="fileStatusFilter" id="filterStatusAll" value="all" class="filter-chip-input" checked>
               <span class="filter-chip-btn">
                 <span class="chip-dot gray"></span>
-                <span>Todos</span>
+                <span data-i18n="file_filter_all">All</span>
                 <span class="filter-count-badge" id="badgeCountAll">0</span>
               </span>
             </label>
 
-            <label class="filter-chip" title="Exibir apenas arquivos ativos para download (Prioridade Normal, Alta ou Máxima)">
+            <label class="filter-chip" data-i18n-title="file_filter_active_title" title="Show only active download files (Normal, High, or Maximum priority)">
               <input type="radio" name="fileStatusFilter" id="filterStatusActive" value="active" class="filter-chip-input">
               <span class="filter-chip-btn filter-chip-active">
                 <span class="chip-dot green"></span>
-                <span>Ativos</span>
+                <span data-i18n="file_filter_active">Active</span>
                 <span class="filter-count-badge" id="badgeCountActive">0</span>
               </span>
             </label>
 
-            <label class="filter-chip" title="Exibir apenas arquivos inativos / ignorados (Não Baixar / Prioridade 0)">
+            <label class="filter-chip" data-i18n-title="file_filter_inactive_title" title="Show only inactive / ignored files (Do Not Download / Priority 0)">
               <input type="radio" name="fileStatusFilter" id="filterStatusInactive" value="inactive" class="filter-chip-input">
               <span class="filter-chip-btn filter-chip-inactive">
                 <span class="chip-dot red"></span>
-                <span>Inativos</span>
+                <span data-i18n="file_filter_inactive">Inactive</span>
                 <span class="filter-count-badge" id="badgeCountInactive">0</span>
               </span>
             </label>
@@ -502,16 +537,16 @@
 
           <div class="search-stats-badge" id="searchStatsBadge">
             <span class="search-badge-dot"></span>
-            <span id="searchResultCount">Filtragem instantânea ativa</span>
+            <span id="searchResultCount" data-i18n="badge_instant_filter">Instant filtering active</span>
           </div>
         </div>
 
         <!-- Tabela de Arquivos do Torrent Selecionado -->
         <div class="torrent-table-container glass-card files-card">
           <div class="table-meta-bar">
-            <div class="table-count" id="filesCountText">Carregando arquivos do torrent...</div>
+            <div class="table-count" id="filesCountText" data-i18n="files_count_loading">Loading torrent files...</div>
             <div class="selection-summary-box" id="selectionSummaryBox">
-              <span id="selectionSummaryCount">0 de 0 selecionados</span>
+              <span id="selectionSummaryCount">0 of 0 selected</span>
               <span class="selection-summary-size" id="selectionSummarySize">(0 B)</span>
             </div>
             <div class="files-hash-tag" id="filesHashTag">Hash: —</div>
@@ -521,51 +556,51 @@
             <table class="torrent-table files-table" id="filesTable">
               <thead>
                 <tr id="filesTableHeaderRow">
-                  <th class="th-file-check sortable-th" data-col="check" title="Clique para ordenar por marcados/desmarcados">
+                  <th class="th-file-check sortable-th" data-col="check" data-i18n-title="th_file_check_title" title="Click to sort by selected/deselected">
                     <div class="th-content">
-                      <span class="th-title-text">Marcar</span>
+                      <span class="th-title-text" data-i18n="th_file_check">Select</span>
                       <span class="sort-arrow" data-sort-for="check">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="check"></span>
                   </th>
-                  <th class="th-file-index sortable-th draggable-col" data-col="index" draggable="true" title="Clique para ordenar pelo Índice # | Arraste para mover coluna">
+                  <th class="th-file-index sortable-th draggable-col" data-col="index" draggable="true" data-i18n-title="th_file_index_title" title="Click to sort by Index # | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">#</span>
+                      <span class="th-title-text" data-i18n="th_file_index">#</span>
                       <span class="sort-arrow" data-sort-for="index">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="index"></span>
                   </th>
-                  <th class="th-file-name sortable-th draggable-col" data-col="name" draggable="true" title="Clique para ordenar por Nome | Arraste para mover coluna">
+                  <th class="th-file-name sortable-th draggable-col" data-col="name" draggable="true" data-i18n-title="th_file_name_title" title="Click to sort by Name | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">Nome do Arquivo</span>
+                      <span class="th-title-text" data-i18n="th_file_name">File Name</span>
                       <span class="sort-arrow" data-sort-for="name">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="name"></span>
                   </th>
-                  <th class="th-file-path sortable-th draggable-col" data-col="path" draggable="true" title="Clique para ordenar por Caminho | Arraste para mover coluna">
+                  <th class="th-file-path sortable-th draggable-col" data-col="path" draggable="true" data-i18n-title="th_file_path_title" title="Click to sort by Path | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">Caminho</span>
+                      <span class="th-title-text" data-i18n="th_file_path">Path</span>
                       <span class="sort-arrow" data-sort-for="path">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="path"></span>
                   </th>
-                  <th class="th-file-size sortable-th draggable-col" data-col="size" draggable="true" title="Clique para ordenar por Tamanho | Arraste para mover coluna">
+                  <th class="th-file-size sortable-th draggable-col" data-col="size" draggable="true" data-i18n-title="th_file_size_title" title="Click to sort by Size | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">Tamanho</span>
+                      <span class="th-title-text" data-i18n="th_file_size">Size</span>
                       <span class="sort-arrow" data-sort-for="size">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="size"></span>
                   </th>
-                  <th class="th-file-prio sortable-th draggable-col" data-col="priority" draggable="true" title="Clique para ordenar por Prioridade | Arraste para mover coluna">
+                  <th class="th-file-prio sortable-th draggable-col" data-col="priority" draggable="true" data-i18n-title="th_file_priority_title" title="Click to sort by Priority | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">Prioridade</span>
+                      <span class="th-title-text" data-i18n="th_file_priority">Priority</span>
                       <span class="sort-arrow" data-sort-for="priority">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="priority"></span>
                   </th>
-                  <th class="th-file-progress sortable-th draggable-col" data-col="progress" draggable="true" title="Clique para ordenar por Progresso | Arraste para mover coluna">
+                  <th class="th-file-progress sortable-th draggable-col" data-col="progress" draggable="true" data-i18n-title="th_file_progress_title" title="Click to sort by Progress | Drag to move column">
                     <div class="th-content">
-                      <span class="th-title-text">Progresso</span>
+                      <span class="th-title-text" data-i18n="th_file_progress">Progress</span>
                       <span class="sort-arrow" data-sort-for="progress">↕</span>
                     </div>
                     <span class="col-resizer" data-resizer-for="progress"></span>
@@ -577,8 +612,8 @@
                   <td colspan="7">
                     <div class="empty-state">
                       <div class="empty-icon">⏳</div>
-                      <h4>Carregando arquivos...</h4>
-                      <p>Consultando a estrutura de arquivos no cliente BitTorrent...</p>
+                      <h4 data-i18n="empty_files_loading_title">Loading files...</h4>
+                      <p data-i18n="empty_files_loading_desc">Querying file structure in BitTorrent client...</p>
                     </div>
                   </td>
                 </tr>
@@ -590,8 +625,8 @@
         <!-- Menu de Contexto para Exibir/Ocultar Colunas com o Botão Direito -->
         <div class="custom-context-menu" id="filesContextMenu" style="display: none;">
           <div class="context-menu-header">
-            <span class="context-menu-title">Colunas Visíveis</span>
-            <span class="context-menu-subtitle">Alternar com botão esquerdo</span>
+            <span class="context-menu-title" data-i18n="ctx_title">Visible Columns</span>
+            <span class="context-menu-subtitle" data-i18n="ctx_subtitle">Toggle with left click</span>
           </div>
           <div class="context-menu-items" id="filesContextMenuItems">
             <!-- Itens de seleção de coluna gerados dinamicamente via JS -->
@@ -599,11 +634,11 @@
           <div class="context-menu-divider"></div>
           <button type="button" class="context-menu-action-btn" id="btnCtxShowAllCols">
             <span class="ctx-btn-icon">👁</span>
-            <span>Exibir Todas as Colunas</span>
+            <span data-i18n="ctx_show_all">Show All Columns</span>
           </button>
           <button type="button" class="context-menu-action-btn" id="btnCtxResetCols">
             <span class="ctx-btn-icon">⟲</span>
-            <span>Restaurar Padrão de Colunas</span>
+            <span data-i18n="ctx_reset">Reset Default Columns</span>
           </button>
         </div>
       </section>
@@ -620,47 +655,47 @@
               </svg>
             </div>
             <div>
-              <h3>Configuração do qBittorrent</h3>
-              <p class="card-subtitle">Configurável por arquivo ou interface</p>
+              <h3 data-i18n="card_connection_title">qBittorrent Configuration</h3>
+              <p class="card-subtitle" data-i18n="card_connection_subtitle">Configurable via file or interface</p>
             </div>
           </div>
 
           <form id="formConnection" class="form-grid">
             <div class="form-row form-row-split">
               <div class="form-group">
-                <label for="inputHost">Endereço / Host:</label>
-                <input type="text" id="inputHost" class="form-input" placeholder="ex: localhost ou 127.0.0.1" required>
+                <label for="inputHost" data-i18n="label_quick_host">Address / Host:</label>
+                <input type="text" id="inputHost" class="form-input" data-i18n-placeholder="placeholder_quick_host" placeholder="e.g. localhost or 127.0.0.1" required>
               </div>
               <div class="form-group" style="max-width: 120px;">
-                <label for="inputPort">Porta:</label>
+                <label for="inputPort" data-i18n="label_quick_port">Port:</label>
                 <input type="number" id="inputPort" class="form-input" placeholder="8877" required>
               </div>
             </div>
 
             <div class="form-row form-row-split">
               <div class="form-group">
-                <label for="inputUsername">Usuário:</label>
+                <label for="inputUsername" data-i18n="label_quick_username">Username:</label>
                 <input type="text" id="inputUsername" class="form-input" placeholder="admin">
               </div>
               <div class="form-group">
-                <label for="inputPassword">Senha:</label>
+                <label for="inputPassword" data-i18n="label_quick_password">Password:</label>
                 <input type="password" id="inputPassword" class="form-input" placeholder="••••••••">
               </div>
             </div>
 
             <div class="form-row form-row-split">
               <div class="form-group">
-                <label for="inputRefreshInterval">Intervalo de Atualização Automática:</label>
+                <label for="inputRefreshInterval" data-i18n="label_quick_refresh">Auto-Refresh Interval:</label>
                 <select id="inputRefreshInterval" class="form-input form-select">
-                  <option value="0">Desativado (Manual apenas)</option>
-                  <option value="5">A cada 5 segundos</option>
-                  <option value="10" selected>A cada 10 segundos (Recomendado)</option>
-                  <option value="30">A cada 30 segundos</option>
-                  <option value="60">A cada 1 minuto</option>
+                  <option value="0" data-i18n="opt_quick_refresh_0">Disabled (Manual only)</option>
+                  <option value="5" data-i18n="opt_quick_refresh_5">Every 5 seconds</option>
+                  <option value="10" data-i18n="opt_quick_refresh_10" selected>Every 10 seconds (Recommended)</option>
+                  <option value="30" data-i18n="opt_quick_refresh_30">Every 30 seconds</option>
+                  <option value="60" data-i18n="opt_quick_refresh_60">Every 1 minute</option>
                 </select>
               </div>
               <div class="form-group" style="max-width: 140px;">
-                <label for="inputTimeoutMs">Timeout (ms):</label>
+                <label for="inputTimeoutMs" data-i18n="label_quick_timeout">Timeout (ms):</label>
                 <input type="number" id="inputTimeoutMs" class="form-input" placeholder="5000" min="1000" step="500">
               </div>
             </div>
@@ -669,13 +704,13 @@
               <label class="checkbox-container">
                 <input type="checkbox" id="inputHttps">
                 <span class="custom-checkbox"></span>
-                <span>Usar HTTPS (SSL/TLS seguro)</span>
+                <span data-i18n="label_quick_https">Use HTTPS (secure SSL/TLS)</span>
               </label>
 
               <label class="checkbox-container">
                 <input type="checkbox" id="inputSaveConfig" checked>
                 <span class="custom-checkbox"></span>
-                <span>Salvar permanentemente em <code>data/config.json</code></span>
+                <span data-i18n="label_quick_save">Save permanently in <code>data/config.json</code></span>
               </label>
             </div>
 
@@ -686,14 +721,14 @@
                   <polyline points="17 21 17 13 7 13 7 21"></polyline>
                   <polyline points="7 3 7 8 15 8"></polyline>
                 </svg>
-                <span>Salvar Configuração</span>
+                <span data-i18n="btn_quick_save">Save Configuration</span>
               </button>
 
               <button type="submit" class="btn btn-primary" id="btnConectar">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polygon points="5 3 19 12 5 21 5 3"></polygon>
                 </svg>
-                <span id="btnConectarText">Conectar ao qBittorrent</span>
+                <span id="btnConectarText" data-i18n="btn_quick_connect">Connect to qBittorrent</span>
               </button>
             </div>
           </form>
@@ -708,8 +743,8 @@
               </svg>
             </div>
             <div>
-              <h3>Status e Diagnóstico</h3>
-              <p class="card-subtitle">Monitoramento da Web API</p>
+              <h3 data-i18n="card_diag_title">Status and Diagnostics</h3>
+              <p class="card-subtitle" data-i18n="card_diag_subtitle">Web API Monitoring</p>
             </div>
           </div>
 
@@ -718,31 +753,31 @@
             <div class="feedback-banner idle" id="feedbackBanner">
               <div class="feedback-icon" id="feedbackIcon">⚡</div>
               <div class="feedback-content">
-                <h4 id="feedbackTitle">Status do Cliente</h4>
-                <p id="feedbackDetail">Aguardando comando de conexão com o qBittorrent...</p>
+                <h4 id="feedbackTitle" data-i18n="diag_banner_client_status">Client Status</h4>
+                <p id="feedbackDetail" data-i18n="diag_banner_waiting">Waiting for connection command to qBittorrent...</p>
               </div>
             </div>
 
             <div class="info-list">
               <div class="info-row">
-                <span class="info-title">URL do Endpoint:</span>
+                <span class="info-title" data-i18n="diag_endpoint">Endpoint URL:</span>
                 <span class="info-data" id="infoEndpoint">http://localhost:8877</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Versão do qBittorrent:</span>
+                <span class="info-title" data-i18n="diag_app_version">qBittorrent Version:</span>
                 <span class="info-data highlight" id="infoAppVersion">—</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Versão da Web API:</span>
+                <span class="info-title" data-i18n="diag_webapi_version">Web API Version:</span>
                 <span class="info-data highlight" id="infoWebApiVersion">—</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Auto-refresh Torrents:</span>
-                <span class="info-data" id="infoAutoRefreshStatus">A cada 10s</span>
+                <span class="info-title" data-i18n="diag_refresh_status">Auto-refresh Torrents:</span>
+                <span class="info-data" id="infoAutoRefreshStatus">Every 10s</span>
               </div>
               <div class="info-row">
-                <span class="info-title">Sessão Cookie (SID):</span>
-                <span class="info-data" id="infoCookieStatus">Inativo</span>
+                <span class="info-title" data-i18n="diag_cookie">Cookie Session (SID):</span>
+                <span class="info-data" id="infoCookieStatus">Inactive</span>
               </div>
             </div>
 
@@ -752,7 +787,7 @@
                   <polyline points="23 4 23 10 17 10"></polyline>
                   <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                 </svg>
-                <span>Reverificar Conexão</span>
+                <span data-i18n="btn_recheck">Re-check Connection</span>
               </button>
 
               <button class="btn btn-danger" id="btnDesconectar" style="display: none;">
@@ -760,7 +795,7 @@
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-                <span>Desconectar</span>
+                <span data-i18n="btn_disconnect">Disconnect</span>
               </button>
             </div>
           </div>
@@ -772,7 +807,7 @@
 
     <!-- Rodapé -->
     <footer class="app-footer">
-      <p>TorrentManager • Arquitetura Unificada de Alto Desempenho • TypeScript</p>
+      <p data-i18n="footer_text">TorrentManager • Unified High-Performance Architecture • TypeScript</p>
     </footer>
   </div>
 

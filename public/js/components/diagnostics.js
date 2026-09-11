@@ -3,6 +3,9 @@
  */
 
 import { state } from '../state.js';
+import { t } from '../utils/i18n.js';
+
+let ultimoStatusData = null;
 
 export function setFeedback(tipo, titulo, detalhe) {
   const feedbackBanner = document.getElementById('feedbackBanner');
@@ -21,7 +24,13 @@ export function setFeedback(tipo, titulo, detalhe) {
 }
 
 export function atualizarStatusDiagnostico(data) {
-  if (!data) return;
+  if (data) {
+    ultimoStatusData = data;
+  } else if (ultimoStatusData) {
+    data = ultimoStatusData;
+  } else {
+    return;
+  }
 
   const isConectado = Boolean(
     data.statusConexao?.conectado ||
@@ -64,7 +73,11 @@ export function atualizarStatusDiagnostico(data) {
   if (isConectado) {
     // Badges do Topo
     if (systemStatusBadge) systemStatusBadge.className = 'badge status-pill active';
-    if (systemStatusText) systemStatusText.textContent = info.appVersion ? `Conectado (${info.appVersion})` : 'Conectado';
+    if (systemStatusText) {
+      systemStatusText.textContent = info.appVersion 
+        ? t('status_connected_ver', { version: info.appVersion })
+        : t('status_connected');
+    }
 
     // Linhas do Painel de Diagnóstico
     if (infoAppVersion) infoAppVersion.textContent = info.appVersion || 'v5.x';
@@ -72,43 +85,51 @@ export function atualizarStatusDiagnostico(data) {
 
     if (infoCookieStatus) {
       const latenciaStr = info.latencyMs !== undefined ? ` • ${info.latencyMs}ms` : '';
-      infoCookieStatus.textContent = `Ativo (SID Validado${latenciaStr})`;
+      infoCookieStatus.textContent = t('diag_cookie_active', { lat: latenciaStr });
       infoCookieStatus.style.color = '#34d399';
     }
 
     if (btnDesconectar) btnDesconectar.style.display = 'inline-flex';
-    if (btnConectarText) btnConectarText.textContent = 'Reconectar';
+    if (btnConectarText) btnConectarText.textContent = t('btn_quick_reconnect');
 
     // Banner de Feedback em destaque
     const detalheMsg = statusConexao.detalhes || 
-      (info.appVersion ? `Conectado ao ${clienteNome} ${info.appVersion} (Web API v${info.webApiVersion || '2.x'}) em ${info.urlBase || 'localhost'}` : 'Autenticação e sessão SID validadas com sucesso.');
+      (info.appVersion 
+        ? `${t('status_connected')} ${clienteNome} ${info.appVersion} (Web API v${info.webApiVersion || '2.x'}) ${info.urlBase || 'localhost'}`
+        : t('diag_banner_connected_detail'));
 
-    setFeedback('success', `Conectado ao ${clienteNome}`, detalheMsg);
+    setFeedback('success', t('diag_banner_connected_title', { client: clienteNome }), detalheMsg);
   } else {
     // Badges do Topo
     if (systemStatusBadge) systemStatusBadge.className = 'badge status-pill offline';
-    if (systemStatusText) systemStatusText.textContent = 'Desconectado';
+    if (systemStatusText) systemStatusText.textContent = t('status_disconnected');
 
     // Linhas do Painel de Diagnóstico
     if (infoAppVersion) infoAppVersion.textContent = '—';
     if (infoWebApiVersion) infoWebApiVersion.textContent = '—';
     if (infoCookieStatus) {
-      infoCookieStatus.textContent = 'Inativo';
+      infoCookieStatus.textContent = t('diag_cookie_inactive');
       infoCookieStatus.style.color = '#94a3b8';
     }
 
     if (btnDesconectar) btnDesconectar.style.display = 'none';
-    if (btnConectarText) btnConectarText.textContent = `Conectar ao ${clienteNome}`;
+    if (btnConectarText) btnConectarText.textContent = t('btn_quick_connect');
 
     const detalhesErro = statusConexao.detalhes || data.erro || data.mensagem;
-    if (detalhesErro && detalhesErro !== 'Não conectado' && detalhesErro !== 'Desconectado') {
-      setFeedback('error', 'Falha na Conexão', detalhesErro);
+    if (detalhesErro && detalhesErro !== 'Não conectado' && detalhesErro !== 'Desconectado' && detalhesErro !== 'Disconnected') {
+      setFeedback('error', t('diag_banner_error_title'), detalhesErro);
     } else {
       setFeedback(
         'idle',
-        'Pronto para conexão',
-        'Credenciais prontas. Clique em "Conectar ao qBittorrent" para iniciar a sessão.'
+        t('diag_banner_ready_title'),
+        t('diag_banner_ready_detail')
       );
     }
   }
 }
+
+window.addEventListener('languageChanged', () => {
+  if (ultimoStatusData) {
+    atualizarStatusDiagnostico(ultimoStatusData);
+  }
+});

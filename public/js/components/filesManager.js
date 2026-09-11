@@ -14,6 +14,7 @@ import { apiService } from '../services/apiService.js';
 import { formatarTamanho, formatarPrioridade, mapearStatusLegivel } from '../utils/formatters.js';
 import { mostrarToast } from './toast.js';
 import { setFeedback } from './diagnostics.js';
+import { t, formatNumber } from '../utils/i18n.js';
 
 const ROW_HEIGHT = 44; // Altura fixa de cada linha em pixels
 const BUFFER_COUNT = 15; // Buffer de linhas renderizadas no viewport
@@ -22,15 +23,29 @@ const LOCAL_STORAGE_WIDTHS_KEY = 'torrentmanager_files_col_widths';
 const LOCAL_STORAGE_ORDER_KEY = 'torrentmanager_files_col_order';
 const LOCAL_STORAGE_HIDDEN_KEY = 'torrentmanager_files_hidden_cols';
 
-export const COLUNAS_INFO = {
-  check: { label: 'Marcar', tag: 'Checkbox', defaultWidth: 54, minWidth: 44 },
-  index: { label: '# Índice', tag: 'Índice', defaultWidth: 60, minWidth: 45 },
-  name: { label: 'Nome do Arquivo', tag: 'Texto', defaultWidth: 320, minWidth: 140 },
-  path: { label: 'Caminho Completo', tag: 'Texto', defaultWidth: 360, minWidth: 140 },
-  size: { label: 'Tamanho', tag: 'Bytes', defaultWidth: 120, minWidth: 80 },
-  priority: { label: 'Prioridade Atual', tag: 'Status', defaultWidth: 150, minWidth: 110 },
-  progress: { label: 'Progresso', tag: 'Barra', defaultWidth: 140, minWidth: 100 },
+export const COLUNAS_CONFIG = {
+  check: { defaultWidth: 54, minWidth: 44, labelKey: 'ctx_col_check', tagKey: 'ctx_tag_checkbox' },
+  index: { defaultWidth: 60, minWidth: 45, labelKey: 'ctx_col_index', tagKey: 'ctx_tag_index' },
+  name: { defaultWidth: 320, minWidth: 140, labelKey: 'ctx_col_name', tagKey: 'ctx_tag_text' },
+  path: { defaultWidth: 360, minWidth: 140, labelKey: 'ctx_col_path', tagKey: 'ctx_tag_text' },
+  size: { defaultWidth: 120, minWidth: 80, labelKey: 'ctx_col_size', tagKey: 'ctx_tag_bytes' },
+  priority: { defaultWidth: 150, minWidth: 110, labelKey: 'ctx_col_priority', tagKey: 'ctx_tag_status' },
+  progress: { defaultWidth: 140, minWidth: 100, labelKey: 'ctx_col_progress', tagKey: 'ctx_tag_bar' },
 };
+
+export const COLUNAS_INFO = new Proxy(COLUNAS_CONFIG, {
+  get(target, prop) {
+    if (prop in target) {
+      const cfg = target[prop];
+      return {
+        ...cfg,
+        get label() { return t(cfg.labelKey); },
+        get tag() { return t(cfg.tagKey); },
+      };
+    }
+    return undefined;
+  },
+});
 
 let scrollRafId = null;
 
@@ -110,10 +125,10 @@ export function atualizarContadoresFiltros() {
 
   const countSelected = state.arquivosSelecionadosIndices.size;
 
-  if (badgeCountAll) badgeCountAll.textContent = total.toLocaleString('pt-BR');
-  if (badgeCountActive) badgeCountActive.textContent = countActive.toLocaleString('pt-BR');
-  if (badgeCountInactive) badgeCountInactive.textContent = countInactive.toLocaleString('pt-BR');
-  if (badgeCountSelected) badgeCountSelected.textContent = countSelected.toLocaleString('pt-BR');
+  if (badgeCountAll) badgeCountAll.textContent = formatNumber(total);
+  if (badgeCountActive) badgeCountActive.textContent = formatNumber(countActive);
+  if (badgeCountInactive) badgeCountInactive.textContent = formatNumber(countInactive);
+  if (badgeCountSelected) badgeCountSelected.textContent = formatNumber(countSelected);
 }
 
 export function atualizarResumoSelecao() {
@@ -133,10 +148,13 @@ export function atualizarResumoSelecao() {
   });
 
   if (filesSelectionBadge) {
-    filesSelectionBadge.textContent = `${totalSelecionados.toLocaleString('pt-BR')} marcados`;
+    filesSelectionBadge.textContent = t('badge_files_selected', { count: formatNumber(totalSelecionados) });
   }
   if (selectionSummaryCount) {
-    selectionSummaryCount.textContent = `${totalSelecionados.toLocaleString('pt-BR')} de ${totalArquivos.toLocaleString('pt-BR')} selecionados`;
+    selectionSummaryCount.textContent = t('selection_summary', {
+      selected: formatNumber(totalSelecionados),
+      total: formatNumber(totalArquivos)
+    });
   }
   if (selectionSummarySize) {
     selectionSummarySize.textContent = `(${formatarTamanho(bytesSelecionados)})`;
@@ -342,7 +360,7 @@ function gerarCelula(colunaId, f, fileIndex, isSelected) {
     case 'check':
       return `
         <td class="cell-file-check">
-          <label class="file-check-label" title="Marcar ou desmarcar arquivo">
+          <label class="file-check-label" title="${t('checkbox_file_title')}">
             <input type="checkbox" class="file-check-input" data-index="${fileIndex}" ${isSelected ? 'checked' : ''}>
             <span class="file-custom-check"></span>
           </label>
@@ -356,11 +374,11 @@ function gerarCelula(colunaId, f, fileIndex, isSelected) {
       return `
         <td class="cell-file-name" data-index="${fileIndex}">
           <div class="file-name-cell-wrapper">
-            <span class="file-name-text ${isDownloaded ? 'is-downloaded' : 'not-downloaded'}" data-action="open-folder" data-index="${fileIndex}" title="${isDownloaded ? 'Arquivo 100% baixado • Clique para abrir a pasta no Explorador de Arquivos' : `Arquivo em ${((f.progress || 0) * 100).toFixed(1)}%`}">
+            <span class="file-name-text ${isDownloaded ? 'is-downloaded' : 'not-downloaded'}" data-action="open-folder" data-index="${fileIndex}" title="${isDownloaded ? t('file_downloaded_title') : t('file_progress_title', { prog: ((f.progress || 0) * 100).toFixed(1) })}">
               ${nomeArquivo}
             </span>
             ${isDownloaded ? `
-              <button type="button" class="btn-file-open-folder" data-action="open-folder" data-index="${fileIndex}" title="Abrir pasta no Explorador de Arquivos">
+              <button type="button" class="btn-file-open-folder" data-action="open-folder" data-index="${fileIndex}" title="${t('btn_open_folder_title')}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -427,14 +445,14 @@ export function renderizarTabelaArquivosVirtualizada() {
   const colCount = Math.max(1, colunasVisiveis.length);
 
   if (state.termoBuscaAtual !== '') {
-    if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos`;
-    if (filesCountText) filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} arquivos para "${state.termoBuscaAtual}"`;
+    if (searchResultCount) searchResultCount.textContent = t('files_badge_ratio', { count: formatNumber(totalFiltrado), total: formatNumber(totalOriginal) });
+    if (filesCountText) filesCountText.textContent = t('files_count_query', { count: formatNumber(totalFiltrado), query: state.termoBuscaAtual });
   } else if (totalFiltrado !== totalOriginal) {
-    if (searchResultCount) searchResultCount.textContent = `${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos filtrados`;
-    if (filesCountText) filesCountText.textContent = `Exibindo ${totalFiltrado.toLocaleString('pt-BR')} de ${totalOriginal.toLocaleString('pt-BR')} arquivos filtrados`;
+    if (searchResultCount) searchResultCount.textContent = t('files_badge_ratio_filtered', { count: formatNumber(totalFiltrado), total: formatNumber(totalOriginal) });
+    if (filesCountText) filesCountText.textContent = t('files_count_filtered', { count: formatNumber(totalFiltrado), total: formatNumber(totalOriginal) });
   } else {
-    if (searchResultCount) searchResultCount.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos disponíveis`;
-    if (filesCountText) filesCountText.textContent = `${totalOriginal.toLocaleString('pt-BR')} arquivos carregados`;
+    if (searchResultCount) searchResultCount.textContent = t('files_badge_available', { count: formatNumber(totalOriginal) });
+    if (filesCountText) filesCountText.textContent = t('files_count_loaded', { count: formatNumber(totalOriginal) });
   }
 
   if (totalFiltrado === 0) {
@@ -443,8 +461,8 @@ export function renderizarTabelaArquivosVirtualizada() {
         <td colspan="${colCount}">
           <div class="empty-state">
             <div class="empty-icon">🔍</div>
-            <h4>Nenhum arquivo encontrado</h4>
-            <p>Nenhum arquivo corresponde aos filtros ativos.</p>
+            <h4>${t('empty_files_none_title')}</h4>
+            <p>${t('empty_files_none_desc')}</p>
           </div>
         </td>
       </tr>
@@ -589,7 +607,7 @@ function initColumnResizers() {
     th.style.width = `${defaultWidth}px`;
     state.columnWidths[colId] = defaultWidth;
     salvarLargurasColunas();
-    mostrarToast('Coluna Ajustada', `Largura padrão restaurada para "${COLUNAS_INFO[colId]?.label || colId}".`, 'info');
+    mostrarToast(t('toast_col_adjusted_title'), t('toast_col_adjusted_msg', { col: COLUNAS_INFO[colId]?.label || colId }), 'info');
   });
 }
 
@@ -712,7 +730,7 @@ function initColumnReordering() {
       salvarOrdemColunas();
       renderizarOrdemColunasHeader();
       renderizarTabelaArquivosVirtualizada();
-      mostrarToast('Ordem Atualizada', 'Posição da coluna reorganizada com sucesso!', 'info');
+      mostrarToast(t('toast_order_title'), t('toast_order_msg'), 'info');
     }
   });
 
@@ -755,7 +773,7 @@ export function alternarVisibilidadeColuna(colId) {
     // Garante que pelo menos 1 coluna permaneça sempre visível
     const visiveis = obterColunasVisiveis();
     if (visiveis.length <= 1) {
-      mostrarToast('Aviso', 'Pelo menos uma coluna deve permanecer visível na tabela.', 'error');
+      mostrarToast(t('toast_warn_title'), t('toast_warn_min_col'), 'error');
       return;
     }
     state.hiddenColumns.add(colId);
@@ -767,8 +785,8 @@ export function alternarVisibilidadeColuna(colId) {
   renderizarTabelaArquivosVirtualizada();
 
   const info = COLUNAS_INFO[colId];
-  const acaoStr = isOculta ? 'exibida' : 'ocultada';
-  mostrarToast('Coluna Atualizada', `Coluna "${info?.label || colId}" foi ${acaoStr}.`, 'info');
+  const acaoStr = isOculta ? t('col_action_shown') : t('col_action_hidden');
+  mostrarToast(t('toast_col_updated_title'), t('toast_col_updated_msg', { col: info?.label || colId, action: acaoStr }), 'info');
 }
 
 export function exibirTodasColunas() {
@@ -777,7 +795,7 @@ export function exibirTodasColunas() {
   renderizarOrdemColunasHeader();
   renderizarItensMenuContexto();
   renderizarTabelaArquivosVirtualizada();
-  mostrarToast('Colunas Restauradas', 'Todas as 7 colunas estão visíveis.', 'success');
+  mostrarToast(t('toast_cols_restored_title'), t('toast_cols_restored_msg'), 'success');
 }
 
 export function restaurarPadraoColunas() {
@@ -795,7 +813,7 @@ export function restaurarPadraoColunas() {
   aplicarLargurasColunas();
   renderizarItensMenuContexto();
   renderizarTabelaArquivosVirtualizada();
-  mostrarToast('Padrão Restaurado', 'Ordem, larguras e visibilidade das colunas foram redefinidas.', 'info');
+  mostrarToast(t('toast_pattern_restored_title'), t('toast_pattern_restored_msg'), 'info');
 }
 
 function renderizarItensMenuContexto() {
@@ -810,7 +828,7 @@ function renderizarItensMenuContexto() {
     const isLastVisible = isVisible && visiveisCount === 1;
 
     return `
-      <div class="context-menu-item ${isVisible ? 'is-visible' : ''} ${isLastVisible ? 'is-disabled' : ''}" data-col="${colId}" title="${isLastVisible ? 'Não é possível ocultar a única coluna visível' : 'Clique para alternar visibilidade'}">
+      <div class="context-menu-item ${isVisible ? 'is-visible' : ''} ${isLastVisible ? 'is-disabled' : ''}" data-col="${colId}" title="${isLastVisible ? t('ctx_cannot_hide_last') : t('ctx_toggle_hint')}">
         <div class="context-menu-item-left">
           <span class="ctx-check-box">${isVisible ? '✓' : ''}</span>
           <span>${info.label}</span>
@@ -921,16 +939,23 @@ export function atualizarHeaderTorrentSelecionado() {
 
   if (filesHashTag) {
     filesHashTag.textContent = torrent.isCategoryVirtual
-      ? `Categoria Unificada • ${torrent.torrentsList?.length || 0} torrents`
+      ? t('files_virtual_hash', { count: torrent.torrentsList?.length || 0 })
       : `Hash: ${torrent.hash}`;
   }
 
   if (selectedTorrentMeta) {
     const totalArquivos = state.todosArquivosDoTorrent.length;
     if (torrent.isCategoryVirtual) {
-      selectedTorrentMeta.textContent = `${totalArquivos.toLocaleString('pt-BR')} arquivos consolidados de ${torrent.torrentsList?.length || 0} torrents • ${formatarTamanho(torrent.size)} no total`;
+      selectedTorrentMeta.textContent = t('files_meta_virtual', {
+        count: formatNumber(totalArquivos),
+        torrents: torrent.torrentsList?.length || 0,
+        size: formatarTamanho(torrent.size),
+      });
     } else {
-      selectedTorrentMeta.textContent = `${totalArquivos.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
+      selectedTorrentMeta.textContent = t('files_meta_normal', {
+        count: formatNumber(totalArquivos),
+        size: formatarTamanho(torrent.size),
+      });
     }
   }
 }
@@ -1082,8 +1107,8 @@ export async function selecionarTorrent(torrent) {
 
   atualizarHeaderTorrentSelecionado();
 
-  if (filesCountText) filesCountText.textContent = 'Carregando arquivos...';
-  if (searchResultCount) searchResultCount.textContent = 'Carregando lista...';
+  if (filesCountText) filesCountText.textContent = t('files_count_loading');
+  if (searchResultCount) searchResultCount.textContent = t('files_count_loading');
 
   const colunasVisiveis = obterColunasVisiveis();
   const colCount = Math.max(1, colunasVisiveis.length);
@@ -1094,8 +1119,8 @@ export async function selecionarTorrent(torrent) {
         <td colspan="${colCount}">
           <div class="empty-state">
             <div class="empty-icon">⏳</div>
-            <h4>Carregando arquivos...</h4>
-            <p>Buscando todos os arquivos de "${torrent.name}"...</p>
+            <h4>${t('empty_files_loading_title')}</h4>
+            <p>${t('empty_files_loading_desc')}</p>
           </div>
         </td>
       </tr>
@@ -1162,7 +1187,11 @@ export async function selecionarTorrent(torrent) {
       state.todosArquivosDoTorrent = todosArquivos;
 
       if (selectedTorrentMeta) {
-        selectedTorrentMeta.textContent = `${todosArquivos.length.toLocaleString('pt-BR')} arquivos consolidados de ${torrent.torrentsList.length} torrents • ${formatarTamanho(torrent.size)} no total`;
+        selectedTorrentMeta.textContent = t('files_meta_virtual', {
+          count: formatNumber(todosArquivos.length),
+          torrents: torrent.torrentsList.length,
+          size: formatarTamanho(torrent.size),
+        });
       }
 
       state.termoBuscaAtual = '';
@@ -1173,8 +1202,11 @@ export async function selecionarTorrent(torrent) {
       renderizarTabelaArquivosVirtualizada();
 
       mostrarToast(
-        'Categoria Consolidada',
-        `${todosArquivos.length.toLocaleString('pt-BR')} arquivos de ${torrent.torrentsList.length} torrents carregados como 1 torrent unificado!`,
+        t('toast_category_loaded_title'),
+        t('toast_category_loaded_msg', {
+          files: formatNumber(todosArquivos.length),
+          torrents: torrent.torrentsList.length,
+        }),
         'success'
       );
       return;
@@ -1200,7 +1232,10 @@ export async function selecionarTorrent(torrent) {
       });
 
       if (selectedTorrentMeta) {
-        selectedTorrentMeta.textContent = `${state.todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos • ${formatarTamanho(torrent.size)} no total`;
+        selectedTorrentMeta.textContent = t('files_meta_normal', {
+          count: formatNumber(state.todosArquivosDoTorrent.length),
+          size: formatarTamanho(torrent.size),
+        });
       }
 
       state.termoBuscaAtual = '';
@@ -1211,35 +1246,37 @@ export async function selecionarTorrent(torrent) {
       renderizarTabelaArquivosVirtualizada();
 
       mostrarToast(
-        'Arquivos Carregados',
-        `${state.todosArquivosDoTorrent.length.toLocaleString('pt-BR')} arquivos carregados com sucesso (Virtualização Ativa).`,
+        t('toast_files_loaded_title'),
+        t('toast_files_loaded_msg', {
+          count: formatNumber(state.todosArquivosDoTorrent.length),
+        }),
         'success'
       );
     } else {
       state.todosArquivosDoTorrent = [];
       state.arquivosSelecionadosIndices.clear();
-      if (filesCountText) filesCountText.textContent = 'Erro ao carregar arquivos';
-      if (searchResultCount) searchResultCount.textContent = '0 arquivos';
+      if (filesCountText) filesCountText.textContent = t('toast_files_error_title');
+      if (searchResultCount) searchResultCount.textContent = '0';
       if (filesTableBody) {
         filesTableBody.innerHTML = `
           <tr class="empty-state-row">
             <td colspan="${colCount}">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
-                <h4>Falha ao carregar arquivos</h4>
-                <p>${data.erro || 'Não foi possível carregar os arquivos deste torrent.'}</p>
+                <h4>${t('empty_files_failed_title')}</h4>
+                <p>${data.erro || t('empty_files_failed_desc', { defaultValue: 'Não foi possível carregar os arquivos deste torrent.' })}</p>
               </div>
             </td>
           </tr>
         `;
       }
       atualizarResumoSelecao();
-      mostrarToast('Erro', data.erro || 'Falha ao carregar arquivos do torrent.', 'error');
+      mostrarToast(t('toast_files_error_title'), data.erro || t('toast_files_error_msg'), 'error');
     }
   } catch (err) {
     state.todosArquivosDoTorrent = [];
     state.arquivosSelecionadosIndices.clear();
-    if (filesCountText) filesCountText.textContent = 'Erro de comunicação';
+    if (filesCountText) filesCountText.textContent = t('toast_network_error_title');
     if (searchResultCount) searchResultCount.textContent = 'Erro';
     if (filesTableBody) {
       filesTableBody.innerHTML = `
@@ -1247,7 +1284,7 @@ export async function selecionarTorrent(torrent) {
           <td colspan="${colCount}">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
-              <h4>Erro de rede</h4>
+              <h4>${t('empty_torrents_network_title')}</h4>
               <p>${err.message}</p>
             </div>
           </td>
@@ -1255,7 +1292,7 @@ export async function selecionarTorrent(torrent) {
       `;
     }
     atualizarResumoSelecao();
-    mostrarToast('Erro de Rede', err.message, 'error');
+    mostrarToast(t('toast_network_error_title'), err.message, 'error');
   }
 }
 
@@ -1268,15 +1305,15 @@ export function perguntarExclusaoArquivosFisicos(qtdDesativados) {
     const btnApenasDesativar = document.getElementById('btnModalExclusaoApenasDesativar');
     const btnApagarFisicos = document.getElementById('btnModalExclusaoApagarFisicos');
 
+    if (qtdEl) qtdEl.textContent = formatNumber(qtdDesativados);
+
     if (!modal) {
-      const resposta = window.confirm(
-        `Você marcou ${qtdDesativados} arquivo(s) como desativados (Não Baixar).\n\nDeseja também apagá-los do sistema de arquivos (disco)?\n- OK: Sim, apagar do disco\n- Cancelar: Não, apenas desativar`
-      );
+      const fallbackMsg = `${t('modal_exclusao_desc', { count: formatNumber(qtdDesativados) })}\n\n${t('modal_exclusao_prompt')}`;
+      const resposta = window.confirm(fallbackMsg);
       resolve(resposta);
       return;
     }
 
-    if (qtdEl) qtdEl.textContent = qtdDesativados.toLocaleString('pt-BR');
     modal.style.display = 'flex';
 
     const fechar = (resultado) => {
@@ -1389,7 +1426,7 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
 
 export async function salvarPrioridades() {
   if (!state.torrentSelecionadoAtual || state.todosArquivosDoTorrent.length === 0) {
-    mostrarToast('Aviso', 'Nenhum torrent ou arquivo selecionado para aplicar prioridades.', 'info');
+    mostrarToast(t('toast_warn_title'), t('toast_no_files_apply'), 'info');
     return;
   }
 
@@ -1434,8 +1471,8 @@ export async function salvarPrioridades() {
   if (savePrioIcon) savePrioIcon.classList.add('spin-animation');
   if (btnSalvarPrioridadesText) {
     btnSalvarPrioridadesText.textContent = apagarDesativados
-      ? 'Excluindo arquivos e sincronizando...'
-      : 'Enviando ao qBittorrent...';
+      ? t('btn_syncing_deleting')
+      : t('btn_syncing_sending');
   }
 
   try {
@@ -1476,15 +1513,22 @@ export async function salvarPrioridades() {
       });
 
       if (!algumErro) {
-        let msg = `Prioridades sincronizadas para todos os ${porTorrent.size} torrents da categoria! (${marcadosIndices.length} marcados, ${desmarcadosIndices.length} desativados).`;
+        let msg = t('toast_cat_prio_applied_msg', {
+          count: formatNumber(porTorrent.size),
+          marked: formatNumber(marcadosIndices.length),
+          unmarked: formatNumber(desmarcadosIndices.length),
+        });
         if (apagarDesativados && totalApagados > 0) {
-          msg += ` ${totalApagados} arquivo(s) apagado(s) (${formatarTamanho(totalBytesLiberados)} liberados).`;
+          msg += t('toast_cat_prio_deleted_msg', {
+            count: formatNumber(totalApagados),
+            space: formatarTamanho(totalBytesLiberados),
+          });
         }
-        mostrarToast('Prioridades da Categoria Aplicadas!', msg, 'success');
-        setFeedback('success', 'Categoria Consolidada Sincronizada', msg);
+        mostrarToast(t('toast_cat_prio_applied_title'), msg, 'success');
+        setFeedback('success', t('feedback_cat_synced_title'), msg);
         await selecionarTorrent(state.torrentSelecionadoAtual);
       } else {
-        mostrarToast('Aviso', 'Alguns torrents da categoria podem não ter atualizado todas as prioridades.', 'warning');
+        mostrarToast(t('toast_warn_title'), t('toast_cat_prio_partial'), 'warning');
         await selecionarTorrent(state.torrentSelecionadoAtual);
       }
       return;
@@ -1499,43 +1543,56 @@ export async function salvarPrioridades() {
         const espacoStr = formatarTamanho(data.detalhes.espacoLiberadoBytes || 0);
 
         mostrarToast(
-          'Prioridades e Disco Atualizados!',
-          `${marcadosIndices.length} arquivos marcados (Normal), ${desmarcadosIndices.length} desativados e ${qtdApagados} arquivo(s) apagado(s) do disco (${espacoStr} liberados).`,
+          t('toast_prio_disk_title'),
+          t('toast_prio_disk_msg', {
+            marked: formatNumber(marcadosIndices.length),
+            unmarked: formatNumber(desmarcadosIndices.length),
+            deleted: formatNumber(qtdApagados),
+            space: espacoStr,
+          }),
           'success'
         );
 
         setFeedback(
           'success',
-          'Prioridades e Disco Atualizados',
-          `As prioridades foram sincronizadas com o qBittorrent e ${qtdApagados} arquivo(s) desativado(s) foram apagados do disco local (${espacoStr} liberados).`
+          t('feedback_prio_disk_title'),
+          t('feedback_prio_disk_detail', {
+            deleted: formatNumber(qtdApagados),
+            space: espacoStr,
+          })
         );
       } else {
         mostrarToast(
-          'Prioridades Aplicadas!',
-          `${marcadosIndices.length} arquivos marcados como Normal (1) e ${desmarcadosIndices.length} como Não Baixar (0).`,
+          t('toast_prio_applied_title'),
+          t('toast_prio_applied_msg', {
+            marked: formatNumber(marcadosIndices.length),
+            unmarked: formatNumber(desmarcadosIndices.length),
+          }),
           'success'
         );
 
         setFeedback(
           'success',
-          'Prioridades Atualizadas no qBittorrent',
-          `As prioridades do torrent "${state.torrentSelecionadoAtual.name}" foram sincronizadas com sucesso com o cliente BitTorrent.`
+          t('feedback_prio_title'),
+          t('feedback_prio_detail', {
+            name: state.torrentSelecionadoAtual.name,
+          })
         );
       }
 
       await selecionarTorrent(state.torrentSelecionadoAtual);
     } else {
-      const msgErro = data?.erro || 'Falha ao aplicar prioridades no qBittorrent.';
-      mostrarToast('Erro ao Aplicar', msgErro, 'error');
-      setFeedback('error', 'Falha ao aplicar prioridades', msgErro);
+      const msgErro = data?.erro || t('toast_apply_error_title');
+      mostrarToast(t('toast_apply_error_title'), msgErro, 'error');
+      setFeedback('error', t('toast_apply_error_title'), msgErro);
     }
   } catch (err) {
-    mostrarToast('Erro de Rede', `Falha de comunicação: ${err.message}`, 'error');
-    setFeedback('error', 'Erro de Comunicação', err.message);
+    mostrarToast(t('toast_network_error_title'), err.message, 'error');
+    setFeedback('error', t('toast_network_error_title'), err.message);
   } finally {
     if (btnSalvarPrioridades) btnSalvarPrioridades.disabled = false;
     if (savePrioIcon) savePrioIcon.classList.remove('spin-animation');
-    if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = 'Aplicar Prioridades';
+    if (btnSalvarPrioridadesText) btnSalvarPrioridadesText.textContent = t('btn_apply_priorities');
   }
 }
 
@@ -1553,14 +1610,14 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
   if (f && !isDownloaded) {
     const progStr = ((f.progress || 0) * 100).toFixed(1) + '%';
     mostrarToast(
-      'Arquivo Não Baixado',
-      `O arquivo "${nomeArquivo}" está em ${progStr} e ainda não foi totalmente baixado.`,
+      t('toast_not_downloaded_title'),
+      t('toast_not_downloaded_msg', { name: nomeArquivo, prog: progStr }),
       'info'
     );
     return;
   }
 
-  mostrarToast('Abrindo Pasta...', `Abrindo localização de "${nomeArquivo}" no Explorador...`, 'info');
+  mostrarToast(t('toast_opening_folder_title'), t('toast_opening_folder_msg', { name: nomeArquivo }), 'info');
 
   try {
     const hash = (f && f._originTorrentHash) ? f._originTorrentHash : state.torrentSelecionadoAtual.hash;
@@ -1570,23 +1627,23 @@ export async function acaoAbrirPastaArquivo(fileIndex) {
 
     if (ok && data?.sucesso) {
       mostrarToast(
-        'Pasta Aberta',
-        `A pasta de "${nomeArquivo}" foi aberta com sucesso no Explorador de Arquivos!`,
+        t('toast_folder_opened_title'),
+        t('toast_folder_opened_msg', { name: nomeArquivo }),
         'success'
       );
     } else {
-      const msg = data?.mensagem || data?.erro || 'Não foi possível abrir a pasta do arquivo.';
-      mostrarToast(data?.naoBaixado ? 'Arquivo Não Baixado' : 'Aviso', msg, data?.naoBaixado ? 'info' : 'error');
+      const msg = data?.mensagem || data?.erro || t('toast_folder_error_msg');
+      mostrarToast(data?.naoBaixado ? t('toast_not_downloaded_title') : t('toast_warn_title'), msg, data?.naoBaixado ? 'info' : 'error');
     }
   } catch (err) {
-    mostrarToast('Erro ao Abrir', `Falha ao abrir pasta: ${err.message}`, 'error');
+    mostrarToast(t('toast_folder_error_title'), err.message, 'error');
   }
 }
 
 // Função para recarregar manualmente o estado e prioridades dos arquivos do torrent selecionado
 export async function recarregarArquivosDoTorrentAtual() {
   if (!state.torrentSelecionadoAtual) {
-    mostrarToast('Aviso', 'Nenhum torrent selecionado para atualizar.', 'info');
+    mostrarToast(t('toast_warn_title'), t('toast_warn_no_torrent_refresh'), 'info');
     return;
   }
 
@@ -1596,7 +1653,7 @@ export async function recarregarArquivosDoTorrentAtual() {
 
   if (btnRecarregar) btnRecarregar.disabled = true;
   if (refreshIcon) refreshIcon.classList.add('spin-animation');
-  if (btnText) btnText.textContent = 'Atualizando...';
+  if (btnText) btnText.textContent = t('btn_refreshing');
 
   try {
     const torrent = state.torrentSelecionadoAtual;
@@ -1677,7 +1734,7 @@ export async function recarregarArquivosDoTorrentAtual() {
           });
         }
       } else {
-        mostrarToast('Erro ao Atualizar', data?.erro || 'Não foi possível carregar os arquivos.', 'error');
+        mostrarToast(t('toast_files_error_title'), data?.erro || t('toast_files_error_msg'), 'error');
         return;
       }
     }
@@ -1688,16 +1745,16 @@ export async function recarregarArquivosDoTorrentAtual() {
     atualizarHeaderTorrentSelecionado();
 
     mostrarToast(
-      'Torrent Atualizado',
-      'Estado e prioridades dos arquivos atualizados a partir do qBittorrent.',
+      t('toast_torrent_refreshed_title'),
+      t('toast_torrent_refreshed_msg'),
       'success'
     );
   } catch (err) {
-    mostrarToast('Erro de Rede', `Falha ao atualizar torrent: ${err.message}`, 'error');
+    mostrarToast(t('toast_network_error_title'), err.message, 'error');
   } finally {
     if (btnRecarregar) btnRecarregar.disabled = false;
     if (refreshIcon) refreshIcon.classList.remove('spin-animation');
-    if (btnText) btnText.textContent = 'Atualizar Torrent';
+    if (btnText) btnText.textContent = t('btn_reload_files');
   }
 }
 
@@ -1794,10 +1851,10 @@ export function initFilesManager() {
     renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
-      'Seleção em Massa',
+      t('toast_bulk_title'),
       termo
-        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis foram marcados.`
-        : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram marcados.`,
+        ? t('toast_bulk_selected_visible', { count: formatNumber(visiveis.length) })
+        : t('toast_bulk_selected_all', { count: formatNumber(visiveis.length) }),
       'success'
     );
   });
@@ -1814,10 +1871,10 @@ export function initFilesManager() {
     renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
-      'Seleção em Massa',
+      t('toast_bulk_title'),
       termo
-        ? `${visiveis.length.toLocaleString('pt-BR')} arquivos visíveis foram desmarcados.`
-        : `Todos os ${visiveis.length.toLocaleString('pt-BR')} arquivos foram desmarcados.`,
+        ? t('toast_bulk_deselected_visible', { count: formatNumber(visiveis.length) })
+        : t('toast_bulk_deselected_all', { count: formatNumber(visiveis.length) }),
       'info'
     );
   });
@@ -1842,10 +1899,10 @@ export function initFilesManager() {
     renderizarTabelaArquivosVirtualizada();
     const termo = (inputSearchFiles?.value || '').trim();
     mostrarToast(
-      'Seleção Invertida',
+      t('toast_bulk_invert_title'),
       termo
-        ? `Seleção invertida para ${totalInvertidos.toLocaleString('pt-BR')} arquivos visíveis.`
-        : `Seleção invertida para todos os ${totalInvertidos.toLocaleString('pt-BR')} arquivos.`,
+        ? t('toast_bulk_invert_visible', { count: formatNumber(totalInvertidos) })
+        : t('toast_bulk_invert_all', { count: formatNumber(totalInvertidos) }),
       'info'
     );
   });
@@ -1892,4 +1949,15 @@ export function initFilesManager() {
 
   // Recarregar arquivos do torrent a partir do qBittorrent
   btnRecarregarArquivosTorrent?.addEventListener('click', recarregarArquivosDoTorrentAtual);
+
+  // Listener de mudança de idioma para atualizar renderização dinâmica do gerenciador de arquivos
+  window.addEventListener('languageChanged', () => {
+    renderizarOrdemColunasHeader();
+    renderizarItensMenuContexto();
+    renderizarTabelaArquivosVirtualizada();
+    atualizarResumoSelecao();
+    if (state.torrentSelecionadoAtual) {
+      atualizarHeaderTorrentSelecionado();
+    }
+  });
 }

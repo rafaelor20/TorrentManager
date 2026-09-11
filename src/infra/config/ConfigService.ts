@@ -8,6 +8,7 @@ export interface AppConfig {
     host: string;
   };
   qbittorrent: TorrentClientConfig;
+  language?: string;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -24,6 +25,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     timeoutMs: 5000,
     refreshInterval: 10,
   },
+  language: 'en',
 };
 
 /**
@@ -233,6 +235,9 @@ export class ConfigService {
     const qbRefreshEnv = process.env.QBIT_REFRESH ? Number(process.env.QBIT_REFRESH) : undefined;
     const qbTimeoutEnv = process.env.QBIT_TIMEOUT ? Number(process.env.QBIT_TIMEOUT) : undefined;
 
+    const langEnv = process.env.APP_LANG || process.env.LANGUAGE;
+    const finalLanguage = (langEnv as string) || fileConfig.language || DEFAULT_CONFIG.language || 'en';
+
     const mergedConfig: AppConfig = {
       server: {
         port: portaFinal,
@@ -247,6 +252,7 @@ export class ConfigService {
         timeoutMs: qbTimeoutEnv ?? fileConfig.qbittorrent?.timeoutMs ?? DEFAULT_CONFIG.qbittorrent.timeoutMs,
         refreshInterval: qbRefreshEnv ?? fileConfig.qbittorrent?.refreshInterval ?? DEFAULT_CONFIG.qbittorrent.refreshInterval,
       },
+      language: finalLanguage,
     };
 
     this.cachedConfig = mergedConfig;
@@ -267,6 +273,7 @@ export class ConfigService {
         ...configAtual.qbittorrent,
         ...novaConfig.qbittorrent,
       },
+      language: novaConfig.language !== undefined ? novaConfig.language : (configAtual.language || 'en'),
     };
 
     try {

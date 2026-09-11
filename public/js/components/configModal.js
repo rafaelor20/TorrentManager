@@ -1,12 +1,9 @@
-/**
- * Componente do Modal de Configurações e Formulário Rápido de Conexão
- */
-
 import { state } from '../state.js';
 import { apiService } from '../services/apiService.js';
 import { mostrarToast } from './toast.js';
 import { atualizarStatusDiagnostico } from './diagnostics.js';
 import { carregarTorrents } from './torrentsTable.js';
+import { t, getLanguage, setLanguage } from '../utils/i18n.js';
 
 export function configurarAutoRefresh(segundos) {
   const infoAutoRefreshStatus = document.getElementById('infoAutoRefreshStatus');
@@ -20,8 +17,8 @@ export function configurarAutoRefresh(segundos) {
 
   if (infoAutoRefreshStatus) {
     infoAutoRefreshStatus.textContent = state.autoRefreshSegundos > 0
-      ? `A cada ${state.autoRefreshSegundos}s`
-      : 'Desativado';
+      ? t('diag_refresh_every', { s: state.autoRefreshSegundos })
+      : t('diag_refresh_off');
     infoAutoRefreshStatus.style.color = state.autoRefreshSegundos > 0 ? '#38bdf8' : '#94a3b8';
   }
 
@@ -41,6 +38,7 @@ export async function abrirModalConfig() {
   const inputModalRefreshInterval = document.getElementById('inputModalRefreshInterval');
   const inputModalTimeout = document.getElementById('inputModalTimeout');
   const inputModalHttps = document.getElementById('inputModalHttps');
+  const inputModalLanguage = document.getElementById('inputModalLanguage');
   const inputHost = document.getElementById('inputHost');
   const inputPort = document.getElementById('inputPort');
   const inputUsername = document.getElementById('inputUsername');
@@ -59,13 +57,18 @@ export async function abrirModalConfig() {
 
       if (inputModalPassword) {
         inputModalPassword.value = '';
-        inputModalPassword.placeholder = qb.hasPassword ? '•••••••• (senha salva)' : 'Digite a senha';
+        inputModalPassword.placeholder = qb.hasPassword ? t('placeholder_password_saved') : t('placeholder_password_empty');
       }
+    }
+
+    if (inputModalLanguage) {
+      inputModalLanguage.value = data.config?.language || getLanguage();
     }
   } catch {
     if (inputModalHost) inputModalHost.value = inputHost?.value || 'localhost';
     if (inputModalPort) inputModalPort.value = inputPort?.value || 8877;
     if (inputModalUsername) inputModalUsername.value = inputUsername?.value || 'admin';
+    if (inputModalLanguage) inputModalLanguage.value = getLanguage();
   }
 
   if (modalConfiguracoes) {
@@ -96,6 +99,7 @@ export function initConfigModal(onConfigSalva) {
   const inputModalRefreshInterval = document.getElementById('inputModalRefreshInterval');
   const inputModalTimeout = document.getElementById('inputModalTimeout');
   const inputModalHttps = document.getElementById('inputModalHttps');
+  const inputModalLanguage = document.getElementById('inputModalLanguage');
 
   btnAbrirConfigModal?.addEventListener('click', abrirModalConfig);
   btnFecharModalConfig?.addEventListener('click', fecharModalConfig);
@@ -123,14 +127,15 @@ export function initConfigModal(onConfigSalva) {
     if (inputModalRefreshInterval) inputModalRefreshInterval.value = '10';
     if (inputModalTimeout) inputModalTimeout.value = 5000;
     if (inputModalHttps) inputModalHttps.checked = false;
+    if (inputModalLanguage) inputModalLanguage.value = 'en';
 
-    mostrarToast('Padrões Carregados', 'Valores padrão do qBittorrent preenchidos nos campos.', 'info');
+    mostrarToast(t('toast_defaults_loaded_title'), t('toast_defaults_loaded_msg'), 'info');
   });
 
   btnModalTestar?.addEventListener('click', async () => {
     if (btnModalTestar) btnModalTestar.disabled = true;
     const textoOriginal = btnModalTestar ? btnModalTestar.innerHTML : '';
-    if (btnModalTestar) btnModalTestar.innerHTML = '<span>Testando...</span>';
+    if (btnModalTestar) btnModalTestar.innerHTML = `<span>${t('btn_testing')}</span>`;
 
     const payload = {
       host: inputModalHost?.value.trim() || 'localhost',
@@ -146,14 +151,14 @@ export function initConfigModal(onConfigSalva) {
       const { ok, data } = await apiService.connectClient(payload);
 
       if (ok && data.sucesso) {
-        mostrarToast('Teste Bem-sucedido', data.mensagem || 'Conectado com sucesso ao qBittorrent!', 'success');
+        mostrarToast(t('toast_test_success_title'), data.mensagem || t('toast_test_success_msg'), 'success');
       } else {
-        mostrarToast('Falha no Teste', data.erro || 'Não foi possível autenticar no qBittorrent.', 'error');
+        mostrarToast(t('toast_test_failed_title'), data.erro || t('toast_test_failed_msg'), 'error');
       }
       atualizarStatusDiagnostico(data);
       await carregarTorrents();
     } catch (err) {
-      mostrarToast('Erro de Rede', `Falha ao testar conexão: ${err.message}`, 'error');
+      mostrarToast(t('toast_network_error_title'), `Falha ao testar conexão: ${err.message}`, 'error');
       atualizarStatusDiagnostico({ statusConexao: { conectado: false, detalhes: `Erro de teste: ${err.message}` } });
     } finally {
       if (btnModalTestar) {
@@ -167,8 +172,9 @@ export function initConfigModal(onConfigSalva) {
     e.preventDefault();
     if (btnModalSalvar) btnModalSalvar.disabled = true;
     const textoSalvar = btnModalSalvar ? btnModalSalvar.innerHTML : '';
-    if (btnModalSalvar) btnModalSalvar.innerHTML = '<span>Salvando...</span>';
+    if (btnModalSalvar) btnModalSalvar.innerHTML = `<span>${t('btn_saving')}</span>`;
 
+    const novoIdioma = inputModalLanguage?.value || getLanguage();
     const payload = {
       host: inputModalHost?.value.trim() || 'localhost',
       port: Number(inputModalPort?.value) || 8877,
@@ -177,13 +183,15 @@ export function initConfigModal(onConfigSalva) {
       useHttps: Boolean(inputModalHttps?.checked),
       timeoutMs: Number(inputModalTimeout?.value) || 5000,
       refreshInterval: Number(inputModalRefreshInterval?.value) ?? 10,
+      language: novoIdioma,
     };
 
     try {
       const data = await apiService.saveConfig(payload);
 
       if (data.sucesso) {
-        mostrarToast('Configurações Salvas', 'Configurações persistidas em data/config.json com sucesso!', 'success');
+        setLanguage(novoIdioma);
+        mostrarToast(t('toast_config_saved_title'), t('toast_config_saved_msg'), 'success');
         fecharModalConfig();
 
         configurarAutoRefresh(payload.refreshInterval);
@@ -191,10 +199,10 @@ export function initConfigModal(onConfigSalva) {
           await onConfigSalva();
         }
       } else {
-        mostrarToast('Erro ao Salvar', data.erro || 'Falha ao salvar configurações.', 'error');
+        mostrarToast(t('toast_save_error_title'), data.erro || t('toast_save_error_msg'), 'error');
       }
     } catch (err) {
-      mostrarToast('Erro de Rede', err.message, 'error');
+      mostrarToast(t('toast_network_error_title'), err.message, 'error');
     } finally {
       if (btnModalSalvar) {
         btnModalSalvar.disabled = false;
@@ -227,7 +235,7 @@ export function initQuickConnectionForm() {
   formConnection?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (btnConectar) btnConectar.disabled = true;
-    if (btnConectarText) btnConectarText.textContent = 'Autenticando...';
+    if (btnConectarText) btnConectarText.textContent = t('btn_quick_authenticating');
 
     const payload = {
       host: inputHost?.value.trim() || 'localhost',
@@ -237,6 +245,7 @@ export function initQuickConnectionForm() {
       useHttps: Boolean(inputHttps?.checked),
       refreshInterval: Number(inputRefreshInterval?.value) ?? 10,
       salvarConfig: Boolean(inputSaveConfig?.checked),
+      language: getLanguage(),
     };
 
     const proto = payload.useHttps ? 'https' : 'http';
@@ -246,22 +255,22 @@ export function initQuickConnectionForm() {
       const { ok, data } = await apiService.connectClient(payload);
 
       if (ok && data.sucesso) {
-        mostrarToast('Conexão Estabelecida', data.mensagem || 'Conectado com sucesso ao qBittorrent!', 'success');
+        mostrarToast(t('toast_connected_title'), data.mensagem || t('toast_test_success_msg'), 'success');
       } else {
-        const msgErro = data.erro || data.mensagem || 'Não foi possível conectar ao qBittorrent.';
-        mostrarToast('Falha na Autenticação', msgErro, 'error');
+        const msgErro = data.erro || data.mensagem || t('toast_test_failed_msg');
+        mostrarToast(t('toast_test_failed_title'), msgErro, 'error');
       }
 
       atualizarStatusDiagnostico(data);
       configurarAutoRefresh(payload.refreshInterval);
       await carregarTorrents();
     } catch (err) {
-      mostrarToast('Erro de Rede', `Falha ao enviar requisição: ${err.message}`, 'error');
+      mostrarToast(t('toast_network_error_title'), `Falha ao enviar requisição: ${err.message}`, 'error');
       atualizarStatusDiagnostico({ statusConexao: { conectado: false, detalhes: `Erro de comunicação: ${err.message}` } });
     } finally {
       if (btnConectar) btnConectar.disabled = false;
       if (!state.isConectadoCliente && btnConectarText) {
-        btnConectarText.textContent = 'Conectar ao qBittorrent';
+        btnConectarText.textContent = t('btn_quick_connect');
       }
     }
   });
@@ -276,17 +285,18 @@ export function initQuickConnectionForm() {
         password: inputPassword?.value || undefined,
         useHttps: Boolean(inputHttps?.checked),
         refreshInterval: Number(inputRefreshInterval?.value) ?? 10,
+        language: getLanguage(),
       };
 
       const data = await apiService.saveConfig(payload);
       if (data.sucesso) {
         configurarAutoRefresh(payload.refreshInterval);
-        mostrarToast('Configurações Salvas', 'As configurações foram salvas em data/config.json com sucesso!', 'success');
+        mostrarToast(t('toast_config_saved_title'), t('toast_config_saved_msg'), 'success');
       } else {
-        mostrarToast('Erro ao Salvar', data.erro || 'Falha ao salvar configurações', 'error');
+        mostrarToast(t('toast_save_error_title'), data.erro || t('toast_save_error_msg'), 'error');
       }
     } catch (err) {
-      mostrarToast('Erro', err.message, 'error');
+      mostrarToast(t('toast_save_error_title'), err.message, 'error');
     } finally {
       if (btnSalvarConfig) btnSalvarConfig.disabled = false;
     }
@@ -297,14 +307,14 @@ export function initQuickConnectionForm() {
     try {
       const { ok, data } = await apiService.connectClient({});
       if (ok && data.sucesso) {
-        mostrarToast('Status Atualizado', 'Conexão confirmada com sucesso!', 'success');
+        mostrarToast(t('toast_test_success_title'), t('toast_test_success_msg'), 'success');
       } else {
-        mostrarToast('Aviso', data.erro || data.mensagem, 'error');
+        mostrarToast(t('toast_test_failed_title'), data.erro || data.mensagem, 'error');
       }
       atualizarStatusDiagnostico(data);
       await carregarTorrents();
     } catch (err) {
-      mostrarToast('Erro', err.message, 'error');
+      mostrarToast(t('toast_network_error_title'), err.message, 'error');
       atualizarStatusDiagnostico({ statusConexao: { conectado: false, detalhes: `Erro: ${err.message}` } });
     } finally {
       if (btnTestarConexao) btnTestarConexao.disabled = false;
@@ -314,17 +324,21 @@ export function initQuickConnectionForm() {
   btnDesconectar?.addEventListener('click', async () => {
     try {
       const data = await apiService.disconnectClient();
-      mostrarToast('Desconectado', 'Sessão encerrada com o cliente.', 'info');
+      mostrarToast(t('toast_disconnected_title'), t('toast_disconnected_msg'), 'info');
       if (torrentFilesSection) torrentFilesSection.style.display = 'none';
       state.torrentSelecionadoAtual = null;
       state.todosArquivosDoTorrent = [];
       state.arquivosSelecionadosIndices.clear();
       atualizarStatusDiagnostico({
-        statusConexao: { conectado: false, detalhes: 'Desconectado pelo usuário' }
+        statusConexao: { conectado: false, detalhes: t('diag_disconnected_user') }
       });
       await carregarTorrents();
     } catch (err) {
-      mostrarToast('Erro', err.message, 'error');
+      mostrarToast(t('toast_save_error_title'), err.message, 'error');
     }
   });
 }
+
+window.addEventListener('languageChanged', () => {
+  configurarAutoRefresh(state.autoRefreshSegundos);
+});

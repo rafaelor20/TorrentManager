@@ -2,7 +2,7 @@ import express, { Router, Request, Response } from 'express';
 import { TorrentClient } from '../domain/client/TorrentClient.js';
 import { TorrentClientRegistry } from '../infra/providers/TorrentClientRegistry.js';
 import { TorrentClientConfig } from '../domain/models/TorrentClientConfig.js';
-import { ConfigService } from '../infra/config/ConfigService.js';
+import { ConfigService, AppConfig } from '../infra/config/ConfigService.js';
 
 export function createRouter(torrentClient: TorrentClient): Router {
   const router = Router();
@@ -23,6 +23,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
       clienteId: torrentClient.obterId ? torrentClient.obterId() : 'qbittorrent',
       statusConexao: torrentClient.obterStatusConexao(),
       infoCliente,
+      language: configAtual.language || 'en',
       config: {
         host: configAtual.qbittorrent.host,
         port: configAtual.qbittorrent.port,
@@ -31,6 +32,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         useHttps: configAtual.qbittorrent.useHttps,
         timeoutMs: configAtual.qbittorrent.timeoutMs,
         refreshInterval: configAtual.qbittorrent.refreshInterval ?? 10,
+        language: configAtual.language || 'en',
       },
       clientesSuportados: TorrentClientRegistry.listarIdsProvedores(),
       provedores: TorrentClientRegistry.listarProvedores(),
@@ -45,6 +47,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
       sucesso: true,
       config: {
         server: config.server,
+        language: config.language || 'en',
         qbittorrent: {
           host: config.qbittorrent.host,
           port: config.qbittorrent.port,
@@ -62,7 +65,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
   // Salvar configurações no arquivo data/config.json
   router.post('/config', (req: Request, res: Response) => {
     try {
-      const { host, port, username, password, useHttps, timeoutMs, refreshInterval } = req.body || {};
+      const { host, port, username, password, useHttps, timeoutMs, refreshInterval, language } = req.body || {};
       
       const configAtual = ConfigService.carregar();
       const novoQbitConfig: Partial<TorrentClientConfig> = {
@@ -79,7 +82,15 @@ export function createRouter(torrentClient: TorrentClient): Router {
         novoQbitConfig.password = password;
       }
 
-      const salva = ConfigService.salvarQBittorrent(novoQbitConfig);
+      const payloadSalvar: Partial<AppConfig> = {
+        qbittorrent: novoQbitConfig as TorrentClientConfig,
+      };
+
+      if (typeof language === 'string' && language.trim() !== '') {
+        payloadSalvar.language = language.trim();
+      }
+
+      const salva = ConfigService.salvar(payloadSalvar);
       
       // Atualiza o cliente instanciado de forma polimórfica
       if (torrentClient.atualizarConfig) {
@@ -90,6 +101,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
         sucesso: true,
         mensagem: 'Configurações salvas com sucesso no arquivo local!',
         config: {
+          language: salva.language || 'en',
           host: salva.qbittorrent.host,
           port: salva.qbittorrent.port,
           username: salva.qbittorrent.username,
@@ -110,7 +122,7 @@ export function createRouter(torrentClient: TorrentClient): Router {
   // Conectar / Testar conexão com a API do cliente BitTorrent
   router.post('/client/connect', async (req: Request, res: Response) => {
     try {
-      const { host, port, username, password, useHttps, timeoutMs, refreshInterval, salvarConfig } = req.body || {};
+      const { host, port, username, password, useHttps, timeoutMs, refreshInterval, salvarConfig, language } = req.body || {};
 
       let overrideConfig: Partial<TorrentClientConfig> | undefined;
 
@@ -127,7 +139,13 @@ export function createRouter(torrentClient: TorrentClient): Router {
         };
 
         if (salvarConfig) {
-          ConfigService.salvarQBittorrent(overrideConfig);
+          const payloadSalvar: Partial<AppConfig> = {
+            qbittorrent: overrideConfig as TorrentClientConfig,
+          };
+          if (typeof language === 'string' && language.trim() !== '') {
+            payloadSalvar.language = language.trim();
+          }
+          ConfigService.salvar(payloadSalvar);
         }
       }
 

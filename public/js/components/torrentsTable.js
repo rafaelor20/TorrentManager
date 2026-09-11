@@ -14,6 +14,7 @@ import { apiService } from '../services/apiService.js';
 import { formatarTamanho, formatarVelocidade, mapearStatusLegivel, normalizarTextoBusca, extrairTokensBusca } from '../utils/formatters.js';
 import { mostrarToast } from './toast.js';
 import { selecionarTorrent, atualizarHeaderTorrentSelecionado, atualizarArquivosSilenciosamente } from './filesManager.js';
+import { t, formatTime } from '../utils/i18n.js';
 
 // ==========================================
 // 1. FILTRAGEM DE TORRENTS (STATUS, CATEGORIA & BUSCA)
@@ -88,12 +89,12 @@ export function definirFiltroStatusTorrents(novoFiltro) {
   renderizarTabelaTorrents();
 
   const labels = {
-    all: 'Todos os Torrents',
-    completed: 'Concluídos / Upload',
-    downloading: 'Em Download',
-    paused: 'Pausados',
+    all: t('filter_label_all'),
+    completed: t('filter_label_completed'),
+    downloading: t('filter_label_downloading'),
+    paused: t('filter_label_paused'),
   };
-  mostrarToast('Filtro de Status', `Filtro ativo: ${labels[state.filtroTorrentsStatus] || state.filtroTorrentsStatus}`, 'info');
+  mostrarToast(t('toast_status_filter_title'), t('toast_status_filter_msg', { label: labels[state.filtroTorrentsStatus] || state.filtroTorrentsStatus }), 'info');
 }
 
 export function atualizarPilulasCategoriasUI() {
@@ -137,7 +138,7 @@ export function atualizarPilulasCategoriasUI() {
 
   let pillsHtml = `
     <button type="button" class="category-pill ${filtroAtual === 'all' ? 'is-active' : ''}" data-category="all">
-      <span>Todos</span>
+      <span>${t('cat_all')}</span>
       <span class="category-pill-count">${todos.length}</span>
     </button>
   `;
@@ -157,7 +158,7 @@ export function atualizarPilulasCategoriasUI() {
     const isActive = filtroAtual === '__none__';
     pillsHtml += `
       <button type="button" class="category-pill ${isActive ? 'is-active' : ''}" data-category="__none__">
-        <span>Sem Categoria</span>
+        <span>${t('cat_uncategorized')}</span>
         <span class="category-pill-count">${countSemCat}</span>
       </button>
     `;
@@ -177,10 +178,10 @@ export function definirFiltroCategoriaTorrents(cat) {
   renderizarTabelaTorrents();
 
   const label = state.filtroTorrentsCategoria === 'all'
-    ? 'Todas as Categorias'
-    : (state.filtroTorrentsCategoria === '__none__' ? 'Sem Categoria' : state.filtroTorrentsCategoria);
+    ? t('label_all_categories')
+    : (state.filtroTorrentsCategoria === '__none__' ? t('cat_uncategorized') : state.filtroTorrentsCategoria);
 
-  mostrarToast('Filtro de Categoria', `Exibindo categoria: ${label}`, 'info');
+  mostrarToast(t('toast_cat_filter_title'), t('toast_cat_filter_msg', { label }), 'info');
 }
 
 export function alternarAgrupamentoPorCategoria() {
@@ -191,7 +192,7 @@ export function alternarAgrupamentoPorCategoria() {
     const btnConsolidar = document.getElementById('btnToggleConsolidatedCategory');
     const btnConsolidarText = document.getElementById('btnToggleConsolidatedCategoryText');
     if (btnConsolidar) btnConsolidar.classList.remove('is-active');
-    if (btnConsolidarText) btnConsolidarText.textContent = 'Fundir como 1 Torrent';
+    if (btnConsolidarText) btnConsolidarText.textContent = t('btn_consolidate_category');
   }
 
   const btnToggle = document.getElementById('btnToggleCategoryGroup');
@@ -201,14 +202,14 @@ export function alternarAgrupamentoPorCategoria() {
     btnToggle.classList.toggle('is-active', state.agruparPorCategoria);
   }
   if (btnToggleText) {
-    btnToggleText.textContent = state.agruparPorCategoria ? '✓ Agrupado por Categoria' : 'Agrupar por Categoria';
+    btnToggleText.textContent = state.agruparPorCategoria ? t('btn_group_category_active') : t('btn_group_category');
   }
 
   renderizarTabelaTorrents();
 
   mostrarToast(
-    'Visualização de Torrents',
-    state.agruparPorCategoria ? 'Torrents agrupados por categoria.' : 'Visualização linear da lista de torrents.',
+    t('toast_view_title'),
+    state.agruparPorCategoria ? t('toast_grouped_msg') : t('toast_linear_msg'),
     'info'
   );
 }
@@ -221,7 +222,7 @@ export function alternarModoConsolidadoCategoria() {
     const btnGroup = document.getElementById('btnToggleCategoryGroup');
     const btnGroupText = document.getElementById('btnToggleCategoryGroupText');
     if (btnGroup) btnGroup.classList.remove('is-active');
-    if (btnGroupText) btnGroupText.textContent = 'Agrupar por Categoria';
+    if (btnGroupText) btnGroupText.textContent = t('btn_group_category');
   }
 
   const btnConsolidar = document.getElementById('btnToggleConsolidatedCategory');
@@ -231,16 +232,16 @@ export function alternarModoConsolidadoCategoria() {
     btnConsolidar.classList.toggle('is-active', state.modoConsolidadoCategoria);
   }
   if (btnConsolidarText) {
-    btnConsolidarText.textContent = state.modoConsolidadoCategoria ? '✓ Categorias como 1 Torrent' : 'Fundir como 1 Torrent';
+    btnConsolidarText.textContent = state.modoConsolidadoCategoria ? t('btn_consolidate_category_active') : t('btn_consolidate_category');
   }
 
   renderizarTabelaTorrents();
 
   mostrarToast(
-    'Modo Categoria Unificada',
+    t('toast_consolidated_title'),
     state.modoConsolidadoCategoria
-      ? 'Torrents de cada categoria consolidados como 1 torrent virtual unificado.'
-      : 'Visualização normal de torrents individuais.',
+      ? t('toast_consolidated_msg_on')
+      : t('toast_consolidated_msg_off'),
     'info'
   );
 }
@@ -261,7 +262,7 @@ export function gerarTorrentsConsolidadosPorCategoria(torrents) {
   const consolidados = [];
 
   grupos.forEach((membros, catKey) => {
-    const catNome = catKey === '__none__' ? 'Sem Categoria' : catKey;
+    const catNome = catKey === '__none__' ? t('cat_uncategorized') : catKey;
     let bytesTotal = 0;
     let downloadSpeedTotal = 0;
     let uploadSpeedTotal = 0;
@@ -347,15 +348,15 @@ export function alterarOrdenacaoTorrents(colunaId) {
   renderizarTabelaTorrents();
 
   const labels = {
-    name: 'Nome',
-    category: 'Categoria',
-    status: 'Status',
-    progress: 'Progresso',
-    size: 'Tamanho',
-    speeds: 'Velocidade',
+    name: t('sort_col_name'),
+    category: t('sort_col_category'),
+    status: t('sort_col_status'),
+    progress: t('sort_col_progress'),
+    size: t('sort_col_size'),
+    speeds: t('sort_col_speeds'),
   };
-  const dirLabel = state.torrentSortDirection === 'asc' ? 'crescente' : 'decrescente';
-  mostrarToast('Ordenação de Torrents', `Torrents ordenados por ${labels[colunaId] || colunaId} (${dirLabel}).`, 'info');
+  const dirLabel = state.torrentSortDirection === 'asc' ? t('sort_dir_asc') : t('sort_dir_desc');
+  mostrarToast(t('toast_sort_title'), t('toast_sort_msg', { col: labels[colunaId] || colunaId, dir: dirLabel }), 'info');
 }
 
 export function atualizarIndicadoresOrdenacaoTorrentsUI() {
@@ -391,8 +392,8 @@ export function ordenarTorrents(lista) {
         return nomeA.localeCompare(nomeB, undefined, { numeric: true, sensitivity: 'base' }) * mult;
       }
       case 'category': {
-        const catA = String(a.category || 'Sem Categoria');
-        const catB = String(b.category || 'Sem Categoria');
+        const catA = String(a.category || t('cat_uncategorized'));
+        const catB = String(b.category || t('cat_uncategorized'));
         const comp = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
         if (comp !== 0) return comp * mult;
         return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
@@ -455,17 +456,17 @@ function renderizarLinhaTorrent(t) {
 
   const isVirtual = Boolean(t.isCategoryVirtual);
   const hashSub = isVirtual
-    ? `${t.torrentsList.length} torrents consolidados • Clique para ver todos os arquivos`
+    ? t('virtual_category_sub', { count: t.torrentsList.length })
     : (t.hash ? t.hash.substring(0, 10) + '...' : '');
 
   const btnText = isSelected
-    ? '✓ Selecionado'
-    : (isVirtual ? `Ver ${t.torrentsList.length} Torrents` : 'Ver Arquivos');
+    ? t('btn_torrent_selected')
+    : (isVirtual ? t('btn_view_n_torrents', { count: t.torrentsList.length }) : t('btn_select_torrent'));
 
   return `
     <tr class="torrent-row ${isSelected ? 'selected' : ''} ${isVirtual ? 'is-virtual-category-row' : ''}" data-hash="${t.hash}">
       <td class="cell-action">
-        <button class="btn btn-outline btn-xs btn-select-torrent" title="Ver arquivos deste item">
+        <button class="btn btn-outline btn-xs btn-select-torrent" title="${btnText}">
           <span>${btnText}</span>
         </button>
       </td>
@@ -474,7 +475,7 @@ function renderizarLinhaTorrent(t) {
         <span class="torrent-hash-sub">${hashSub}</span>
       </td>
       <td class="cell-category">
-        ${catNome ? `<span class="category-badge" title="Categoria: ${catNome}">📁 ${catNome}</span>` : '<span class="category-badge category-badge-none">Sem Categoria</span>'}
+        ${catNome ? `<span class="category-badge" title="${catNome}">📁 ${catNome}</span>` : `<span class="category-badge category-badge-none">${t('cat_uncategorized')}</span>`}
       </td>
       <td class="cell-status">
         <span class="status-tag ${statusInfo.classe}">
@@ -485,7 +486,7 @@ function renderizarLinhaTorrent(t) {
         <div class="progress-wrapper">
           <div class="progress-label-row">
             <span>${percentualStr}</span>
-            <span>${isComplete ? 'Concluído' : ''}</span>
+            <span>${isComplete ? t('progress_completed') : ''}</span>
           </div>
           <div class="progress-track">
             <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${Math.min(100, Math.max(0, percentualNum))}%;"></div>
@@ -524,21 +525,21 @@ export function renderizarTabelaTorrents() {
   // Atualiza contadores e badges de status
   if (torrentSearchResultCount) {
     if (temFiltroAtivo) {
-      torrentSearchResultCount.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents`;
+      torrentSearchResultCount.textContent = t('showing_filtered_torrents', { count: totalFiltrado, total: totalOriginal });
     } else {
       torrentSearchResultCount.textContent = totalOriginal === 1
-        ? '1 torrent carregado'
-        : `Exibindo todos os ${totalOriginal} torrents`;
+        ? t('showing_all_torrents_singular')
+        : t('showing_all_torrents', { count: totalOriginal });
     }
   }
 
   if (tableCountText) {
     if (temFiltroAtivo) {
-      tableCountText.textContent = `Exibindo ${totalFiltrado} de ${totalOriginal} torrents filtrados`;
+      tableCountText.textContent = t('table_count_filtered', { count: totalFiltrado, total: totalOriginal });
     } else {
       tableCountText.textContent = totalOriginal === 1
-        ? '1 torrent carregado'
-        : `${totalOriginal} torrents carregados do ${clientNome}`;
+        ? t('table_count_torrents_singular', { client: clientNome })
+        : t('table_count_torrents', { count: totalOriginal, client: clientNome });
     }
   }
 
@@ -548,8 +549,8 @@ export function renderizarTabelaTorrents() {
         <td colspan="7">
           <div class="empty-state">
             <div class="empty-icon">📂</div>
-            <h4>Nenhum torrent encontrado</h4>
-            <p>Não há torrents ativos no cliente ou a conexão aguarda autenticação.</p>
+            <h4>${t('empty_torrents_none_title')}</h4>
+            <p>${t('empty_torrents_none_desc')}</p>
           </div>
         </td>
       </tr>
@@ -563,8 +564,8 @@ export function renderizarTabelaTorrents() {
         <td colspan="7">
           <div class="empty-state">
             <div class="empty-icon">🔍</div>
-            <h4>Nenhum torrent corresponde aos filtros</h4>
-            <p>Tente alterar a categoria, o status selecionado ou ajustar o termo de pesquisa.</p>
+            <h4>${t('empty_torrents_filter_title')}</h4>
+            <p>${t('empty_torrents_filter_desc')}</p>
           </div>
         </td>
       </tr>
@@ -594,7 +595,7 @@ export function renderizarTabelaTorrents() {
 
     chavesOrdenadas.forEach((catKey) => {
       const listaDoGrupo = grupos.get(catKey) || [];
-      const catNome = catKey === '__none__' ? 'Sem Categoria' : catKey;
+      const catNome = catKey === '__none__' ? t('cat_uncategorized') : catKey;
       let totalBytesGrupo = 0;
       listaDoGrupo.forEach((t) => { totalBytesGrupo += (t.size || 0); });
 
@@ -604,7 +605,7 @@ export function renderizarTabelaTorrents() {
             <div class="category-group-header">
               <span class="category-group-icon">📁</span>
               <span class="category-group-name">${catNome}</span>
-              <span class="category-group-count">${listaDoGrupo.length} torrent${listaDoGrupo.length === 1 ? '' : 's'}</span>
+              <span class="category-group-count">${t('category_group_count', { count: listaDoGrupo.length, plural: listaDoGrupo.length === 1 ? '' : 's' })}</span>
               <span class="category-group-size">${formatarTamanho(totalBytesGrupo)}</span>
             </div>
           </td>
@@ -650,15 +651,15 @@ export async function carregarTorrents(isManual = false) {
   if (isManual && btnRecarregarTorrents && btnRecarregarText && refreshIcon) {
     btnRecarregarTorrents.disabled = true;
     refreshIcon.classList.add('spin-animation');
-    btnRecarregarText.textContent = 'Atualizando...';
+    btnRecarregarText.textContent = t('btn_refreshing');
   }
 
   try {
     const { ok, data } = await apiService.getTorrents();
 
     const agora = new Date();
-    const horaStr = agora.toLocaleTimeString('pt-BR');
-    if (lastSyncTime) lastSyncTime.textContent = `Última sincronização: ${horaStr}`;
+    const horaStr = formatTime(agora);
+    if (lastSyncTime) lastSyncTime.textContent = t('last_sync', { time: horaStr });
 
     if (ok && data.sucesso) {
       state.isConectadoCliente = true;
@@ -730,40 +731,40 @@ export async function carregarTorrents(isManual = false) {
       renderizarTabelaTorrents();
 
       if (isManual) {
-        mostrarToast('Torrents Atualizados', `${torrents.length} torrents sincronizados com sucesso!`, 'success');
+        mostrarToast(t('toast_torrents_updated_title'), t('toast_torrents_updated_msg', { count: torrents.length }), 'success');
       }
     } else {
       state.todosTorrents = [];
       const tableCountText = document.getElementById('tableCountText');
-      if (tableCountText) tableCountText.textContent = 'Erro ao listar torrents';
+      if (tableCountText) tableCountText.textContent = t('toast_update_error_title');
       if (torrentsTableBody) {
         torrentsTableBody.innerHTML = `
           <tr class="empty-state-row">
             <td colspan="7">
               <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
-                <h4>Falha ao carregar torrents</h4>
-                <p>${data.erro || 'Verifique se o cliente BitTorrent está conectado e tente novamente.'}</p>
+                <h4>${t('empty_torrents_failed_title')}</h4>
+                <p>${data.erro || t('empty_torrents_failed_desc', { defaultValue: 'Verifique se o cliente BitTorrent está conectado e tente novamente.' })}</p>
               </div>
             </td>
           </tr>
         `;
       }
       if (isManual) {
-        mostrarToast('Erro ao Atualizar', data.erro || 'Não foi possível carregar a lista de torrents.', 'error');
+        mostrarToast(t('toast_update_error_title'), data.erro || t('toast_update_error_msg'), 'error');
       }
     }
   } catch (err) {
     state.todosTorrents = [];
     const tableCountText = document.getElementById('tableCountText');
-    if (tableCountText) tableCountText.textContent = 'Erro de comunicação';
+    if (tableCountText) tableCountText.textContent = t('toast_network_error_title');
     if (torrentsTableBody) {
       torrentsTableBody.innerHTML = `
         <tr class="empty-state-row">
           <td colspan="7">
             <div class="empty-state">
               <div class="empty-icon">✕</div>
-              <h4>Erro de rede</h4>
+              <h4>${t('empty_torrents_network_title')}</h4>
               <p>${err.message}</p>
             </div>
           </td>
@@ -771,7 +772,7 @@ export async function carregarTorrents(isManual = false) {
       `;
     }
     if (isManual) {
-      mostrarToast('Erro de Rede', err.message, 'error');
+      mostrarToast(t('toast_network_error_title'), err.message, 'error');
     }
   } finally {
     isCarregandoTorrents = false;
@@ -779,7 +780,7 @@ export async function carregarTorrents(isManual = false) {
       setTimeout(() => {
         btnRecarregarTorrents.disabled = false;
         refreshIcon.classList.remove('spin-animation');
-        btnRecarregarText.textContent = 'Atualizar Torrents';
+        btnRecarregarText.textContent = t('btn_refresh_torrents');
       }, 300);
     }
   }
@@ -875,3 +876,8 @@ export function initTorrentsTable() {
   atualizarIndicadoresOrdenacaoTorrentsUI();
   atualizarIndicadoresFiltroStatusTorrentsUI();
 }
+
+window.addEventListener('languageChanged', () => {
+  atualizarPilulasCategoriasUI();
+  renderizarTabelaTorrents();
+});

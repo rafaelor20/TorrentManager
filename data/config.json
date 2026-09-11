@@ -11,5 +11,6 @@
     "useHttps": false,
     "timeoutMs": 6000,
     "refreshInterval": 60
-  }
+  },
+  "language": "en"
 }
