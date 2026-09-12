@@ -206,25 +206,91 @@ export function createRouter(torrentClient: TorrentClient): Router {
     }
   });
 
+/**
+ * Safely streams torrent files in chunks to prevent V8 RangeError: Invalid string length
+ * when serializing large file lists (10,000 to 100,000+ files).
+ */
+function streamTorrentFiles(res: Response, files: any[]): void {
+  try {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.write(`{"sucesso":true,"quantidade":${files.length},"files":[`);
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+      const slice = files.slice(i, i + CHUNK_SIZE);
+      const jsonChunk = slice.map((item) => JSON.stringify(item)).join(',');
+      res.write((i > 0 ? ',' : '') + jsonChunk);
+    }
+    res.write(']}');
+    res.end();
+  } catch (err: any) {
+    console.error('[Routes] Error streaming torrent files:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao serializar arquivos',
+        quantidade: 0,
+        files: [],
+      });
+    } else {
+      res.end();
+    }
+  }
+}
+
+/**
+ * Safely streams batch torrent files dictionary in chunks to avoid V8 string length limits.
+ */
+function streamBatchFiles(res: Response, filesByHash: Record<string, any[]>): void {
+  try {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.write('{"sucesso":true,"filesByHash":{');
+    const hashes = Object.keys(filesByHash);
+    for (let h = 0; h < hashes.length; h++) {
+      const hash = hashes[h];
+      const files = filesByHash[hash] || [];
+      const hashPrefix = h === 0 ? '' : ',';
+      res.write(`${hashPrefix}${JSON.stringify(hash)}:[`);
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+        const slice = files.slice(i, i + CHUNK_SIZE);
+        const jsonChunk = slice.map((item) => JSON.stringify(item)).join(',');
+        res.write((i > 0 ? ',' : '') + jsonChunk);
+      }
+      res.write(']');
+    }
+    res.write('}}');
+    res.end();
+  } catch (err: any) {
+    console.error('[Routes] Error streaming batch files:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        sucesso: false,
+        erro: err?.message || 'Erro ao serializar arquivos em lote',
+        filesByHash: {},
+      });
+    } else {
+      res.end();
+    }
+  }
+}
+
   // List torrent files
   router.get('/torrents/:hash/files', async (req: Request, res: Response) => {
     try {
       const hashParam = req.params.hash;
       const hash = Array.isArray(hashParam) ? hashParam[0] : hashParam;
       const files = await torrentClient.listarArquivos(hash);
-      res.json({
-        sucesso: true,
-        quantidade: files.length,
-        files: files || [],
-      });
+      streamTorrentFiles(res, files || []);
     } catch (err: any) {
       console.warn(`[Routes] Warning while listing files for hash ${req.params.hash}:`, err?.message || err);
-      res.json({
-        sucesso: false,
-        erro: err?.message || 'Erro ao listar arquivos',
-        quantidade: 0,
-        files: [],
-      });
+      if (!res.headersSent) {
+        res.json({
+          sucesso: false,
+          erro: err?.message || 'Erro ao listar arquivos',
+          quantidade: 0,
+          files: [],
+        });
+      }
     }
   });
 
@@ -239,11 +305,13 @@ export function createRouter(torrentClient: TorrentClient): Router {
         });
       }
 
+      // Safeguard against unbounded batch sizes (limit to 20 per request)
+      const requestedHashes = hashes.slice(0, 20).map(String);
       let filesByHash: Record<string, any[]> = {};
 
       if (torrentClient.listarArquivosEmLote) {
         try {
-          filesByHash = await torrentClient.listarArquivosEmLote(hashes.map(String));
+          filesByHash = await torrentClient.listarArquivosEmLote(requestedHashes);
         } catch (err: any) {
           console.warn('[Routes] Batch file retrieval failed, using fallback:', err?.message || err);
         }
@@ -253,8 +321,8 @@ export function createRouter(torrentClient: TorrentClient): Router {
       if (!filesByHash || Object.keys(filesByHash).length === 0) {
         filesByHash = {};
         const CONCURRENCY_LIMIT = 4;
-        for (let i = 0; i < hashes.length; i += CONCURRENCY_LIMIT) {
-          const chunk = hashes.slice(i, i + CONCURRENCY_LIMIT);
+        for (let i = 0; i < requestedHashes.length; i += CONCURRENCY_LIMIT) {
+          const chunk = requestedHashes.slice(i, i + CONCURRENCY_LIMIT);
           await Promise.all(
             chunk.map(async (h: string) => {
               try {
@@ -269,23 +337,23 @@ export function createRouter(torrentClient: TorrentClient): Router {
         }
       }
 
-      res.json({
-        sucesso: true,
-        filesByHash,
-      });
+      streamBatchFiles(res, filesByHash);
     } catch (err: any) {
       console.error('[Routes] Error in batch-files:', err?.message || err);
-      res.json({
-        sucesso: false,
-        erro: err?.message || 'Erro ao obter arquivos em lote',
-        filesByHash: {},
-      });
+      if (!res.headersSent) {
+        res.json({
+          sucesso: false,
+          erro: err?.message || 'Erro ao obter arquivos em lote',
+          filesByHash: {},
+        });
+      }
     }
   });
 
   // Agnostically apply priorities to torrent files
   router.post('/torrents/:hash/priority', async (req: Request, res: Response) => {
     try {
+      req.setTimeout(180000); // 3 minutes timeout for heavy disk I/O on large torrents
       const hashParam = req.params.hash;
       const hash = Array.isArray(hashParam) ? hashParam[0] : hashParam;
       const { marcadosIndices, desmarcadosIndices, prioridade, indices, apagarDesativados } = req.body || {};

@@ -259,10 +259,11 @@ export class QBittorrentClient implements TorrentClient {
 
     try {
       const urlBase = this.obterUrlBase();
+      const timeoutInfo = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const response = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/info`,
         method: 'GET',
-        timeoutMs: 8000,
+        timeoutMs: timeoutInfo,
       });
 
       // If session expired in qBittorrent (HTTP 403 Forbidden), attempt to refresh
@@ -374,7 +375,6 @@ export class QBittorrentClient implements TorrentClient {
           progress: typeof f.progress === 'number' ? f.progress : 0,
           priority: typeof f.priority === 'number' ? (f.priority as FilePriority) : FilePriority.NORMAL,
           isAvailable: Boolean(f.is_seed || f.availability > 0),
-          originalName: f.name,
         };
       });
     } catch (parseErr: any) {
@@ -434,50 +434,73 @@ export class QBittorrentClient implements TorrentClient {
       }
     }
 
-    // If index list is large, process in chunks of 1000 to avoid overloading qBittorrent WebAPI
-    const CHUNK_SIZE = 1000;
+    // If index list is large, process in chunks of 500 to avoid overloading qBittorrent WebAPI
+    const CHUNK_SIZE = 500;
     if (fileIndices.length > CHUNK_SIZE) {
       for (let i = 0; i < fileIndices.length; i += CHUNK_SIZE) {
         const chunk = fileIndices.slice(i, i + CHUNK_SIZE);
         const ok = await this.alterarPrioridades(torrentHash, chunk, prioridade);
         if (!ok) return false;
+        // Brief pause between chunks to allow qBittorrent disk queue to process
+        if (i + CHUNK_SIZE < fileIndices.length) {
+          await new Promise((resolve) => setTimeout(resolve, 80));
+        }
       }
       return true;
     }
 
-    try {
-      const urlBase = this.obterUrlBase();
-      const params = new URLSearchParams();
-      params.append('hash', torrentHash);
-      params.append('id', fileIndices.join('|'));
-      params.append('priority', prioridade.toString());
+    const timeoutPrio = Math.max(60000, (this.config.timeoutMs || 10000) * 4);
+    const MAX_RETRIES = 2;
 
-      const response = await this.fazerRequisicao({
-        url: `${urlBase}/api/v2/torrents/filePrio`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        },
-        body: params.toString(),
-        timeoutMs: 8000,
-      });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const urlBase = this.obterUrlBase();
+        const params = new URLSearchParams();
+        params.append('hash', torrentHash);
+        params.append('id', fileIndices.join('|'));
+        params.append('priority', prioridade.toString());
 
-      // If session expired in qBittorrent, attempt to refresh and resend
-      if (response.statusCode === 403 || response.statusCode === 401) {
-        this.conectado = false;
-        const reconnected = await this.conectar().catch(() => false);
-        if (reconnected) {
-          return this.alterarPrioridades(torrentHash, fileIndices, prioridade);
+        const response = await this.fazerRequisicao({
+          url: `${urlBase}/api/v2/torrents/filePrio`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          },
+          body: params.toString(),
+          timeoutMs: timeoutPrio,
+        });
+
+        // If session expired in qBittorrent, attempt to refresh and resend
+        if (response.statusCode === 403 || response.statusCode === 401) {
+          this.conectado = false;
+          const reconnected = await this.conectar().catch(() => false);
+          if (reconnected) {
+            return this.alterarPrioridades(torrentHash, fileIndices, prioridade);
+          }
+          throw new Error('Sessão expirada no qBittorrent ao tentar alterar prioridades.');
         }
-        throw new Error('Sessão expirada no qBittorrent ao tentar alterar prioridades.');
-      }
 
-      // In qBittorrent, both 200 OK and 204 No Content represent success
-      return response.statusCode === 200 || response.statusCode === 204;
-    } catch (err: any) {
-      console.error('[QBittorrentClient] Error changing priorities:', err);
-      throw new Error(`Falha ao comunicar com o qBittorrent: ${err.message}`);
+        // In qBittorrent, both 200 OK and 204 No Content represent success
+        if (response.statusCode === 200 || response.statusCode === 204) {
+          return true;
+        }
+
+        console.warn(`[QBittorrentClient] filePrio returned unexpected status ${response.statusCode} (attempt ${attempt}/${MAX_RETRIES})`);
+        if (attempt === MAX_RETRIES) {
+          return false;
+        }
+      } catch (err: any) {
+        console.warn(`[QBittorrentClient] Warning changing priorities (attempt ${attempt}/${MAX_RETRIES}):`, err?.message || err);
+        if (attempt < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          continue;
+        }
+        console.error('[QBittorrentClient] Error changing priorities after retries:', err);
+        throw new Error(`Falha ao comunicar com o qBittorrent: ${err?.message || err}`);
+      }
     }
+
+    return false;
   }
 
   /**
@@ -505,10 +528,11 @@ export class QBittorrentClient implements TorrentClient {
     let contentPath = '';
 
     try {
+      const timeoutFiles = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const resTorrent = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/info?hashes=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
-        timeoutMs: 8000,
+        timeoutMs: timeoutFiles,
       });
 
       if (resTorrent.statusCode === 200 && resTorrent.bodyText) {
@@ -525,10 +549,11 @@ export class QBittorrentClient implements TorrentClient {
     // 2. Get torrent file list from qBittorrent
     let filesList: any[] = [];
     try {
+      const timeoutFiles = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const resFiles = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
-        timeoutMs: 8000,
+        timeoutMs: timeoutFiles,
       });
 
       if (resFiles.statusCode === 200 && resFiles.bodyText) {
@@ -731,19 +756,24 @@ export class QBittorrentClient implements TorrentClient {
       };
 
       const req = requestModule.request(reqOptions, (res) => {
-        let bodyData = '';
-        res.setEncoding('utf-8');
+        const chunks: Buffer[] = [];
 
-        res.on('data', (chunk) => {
-          bodyData += chunk;
+        res.on('data', (chunk: Buffer | string) => {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
         });
 
         res.on('end', () => {
-          resolve({
-            statusCode: res.statusCode || 0,
-            headers: res.headers,
-            bodyText: bodyData,
-          });
+          try {
+            const bodyBuffer = Buffer.concat(chunks);
+            const bodyText = bodyBuffer.toString('utf-8');
+            resolve({
+              statusCode: res.statusCode || 0,
+              headers: res.headers,
+              bodyText,
+            });
+          } catch (decodeErr: any) {
+            reject(new Error(`Failed to decode HTTP response body: ${decodeErr?.message || decodeErr}`));
+          }
         });
 
         res.on('error', (err) => {
@@ -821,10 +851,11 @@ export class QBittorrentClient implements TorrentClient {
     let contentPath = '';
 
     try {
+      const timeoutFiles = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const resTorrent = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/info?hashes=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
-        timeoutMs: 8000,
+        timeoutMs: timeoutFiles,
       });
 
       if (resTorrent.statusCode === 200 && resTorrent.bodyText) {
@@ -841,10 +872,11 @@ export class QBittorrentClient implements TorrentClient {
     // 2. Get specific file information
     let targetFile: any = null;
     try {
+      const timeoutFiles = Math.max(30000, (this.config.timeoutMs || 10000) * 2);
       const resFiles = await this.fazerRequisicao({
         url: `${urlBase}/api/v2/torrents/files?hash=${encodeURIComponent(torrentHash)}`,
         method: 'GET',
-        timeoutMs: 8000,
+        timeoutMs: timeoutFiles,
       });
 
       if (resFiles.statusCode === 200 && resFiles.bodyText) {

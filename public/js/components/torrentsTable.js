@@ -271,18 +271,18 @@ export function gerarTorrentsConsolidadosPorCategoria(torrents) {
     let hasPaused = false;
     let allCompleted = true;
 
-    membros.forEach((t) => {
-      const size = Number(t.size || 0);
+    membros.forEach((m) => {
+      const size = Number(m.size || 0);
       bytesTotal += size;
-      downloadSpeedTotal += Number(t.downloadSpeed || 0);
-      uploadSpeedTotal += Number(t.uploadSpeed || 0);
+      downloadSpeedTotal += Number(m.downloadSpeed || 0);
+      uploadSpeedTotal += Number(m.uploadSpeed || 0);
 
-      const prog = typeof t.progress === 'number' ? (t.progress > 1 ? t.progress / 100 : t.progress) : 0;
+      const prog = typeof m.progress === 'number' ? (m.progress > 1 ? m.progress / 100 : m.progress) : 0;
       bytesBaixadosTotal += size * prog;
 
-      if (t.status === 'downloading') hasDownloading = true;
-      if (t.status === 'paused') hasPaused = true;
-      if (t.status !== 'completed' && t.status !== 'uploading' && prog < 1) allCompleted = false;
+      if (m.status === 'downloading') hasDownloading = true;
+      if (m.status === 'paused') hasPaused = true;
+      if (m.status !== 'completed' && m.status !== 'uploading' && prog < 1) allCompleted = false;
     });
 
     const progressoConsolidado = bytesTotal > 0 ? (bytesBaixadosTotal / bytesTotal) : (allCompleted ? 1 : 0);
@@ -436,42 +436,42 @@ export function ordenarTorrents(lista) {
 // 3. TORRENT TABLE RENDERING
 // ==========================================
 
-function renderizarLinhaTorrent(t) {
-  const statusInfo = mapearStatusLegivel(t.status, t.rawState);
-  const percentualNum = typeof t.progress === 'number'
-    ? (t.progress > 1 ? t.progress : t.progress * 100)
+function renderizarLinhaTorrent(torrent) {
+  const statusInfo = mapearStatusLegivel(torrent.status, torrent.rawState);
+  const percentualNum = typeof torrent.progress === 'number'
+    ? (torrent.progress > 1 ? torrent.progress : torrent.progress * 100)
     : 0;
   const percentualStr = percentualNum.toFixed(1) + '%';
   const isComplete = percentualNum >= 100;
 
-  const tamanhoFormatado = formatarTamanho(t.size);
-  const dlSpeedStr = t.downloadSpeed > 0 ? `↓ ${formatarVelocidade(t.downloadSpeed)}` : '';
-  const upSpeedStr = t.uploadSpeed > 0 ? `↑ ${formatarVelocidade(t.uploadSpeed)}` : '';
+  const tamanhoFormatado = formatarTamanho(torrent.size);
+  const dlSpeedStr = torrent.downloadSpeed > 0 ? `↓ ${formatarVelocidade(torrent.downloadSpeed)}` : '';
+  const upSpeedStr = torrent.uploadSpeed > 0 ? `↑ ${formatarVelocidade(torrent.uploadSpeed)}` : '';
   const speedDisplay = (dlSpeedStr || upSpeedStr)
     ? `<span class="speed-down">${dlSpeedStr}</span><span class="speed-up">${upSpeedStr}</span>`
     : '<span style="color: var(--text-muted);">—</span>';
 
-  const isSelected = state.torrentSelecionadoAtual && state.torrentSelecionadoAtual.hash === t.hash;
-  const catNome = t.categoryName || (t.category ? t.category.trim() : '');
+  const isSelected = state.torrentSelecionadoAtual && state.torrentSelecionadoAtual.hash === torrent.hash;
+  const catNome = torrent.categoryName || (torrent.category ? torrent.category.trim() : '');
 
-  const isVirtual = Boolean(t.isCategoryVirtual);
+  const isVirtual = Boolean(torrent.isCategoryVirtual);
   const hashSub = isVirtual
-    ? t('virtual_category_sub', { count: t.torrentsList.length })
-    : (t.hash ? t.hash.substring(0, 10) + '...' : '');
+    ? t('virtual_category_sub', { count: torrent.torrentsList.length })
+    : (torrent.hash ? torrent.hash.substring(0, 10) + '...' : '');
 
   const btnText = isSelected
     ? t('btn_torrent_selected')
-    : (isVirtual ? t('btn_view_n_torrents', { count: t.torrentsList.length }) : t('btn_select_torrent'));
+    : (isVirtual ? t('btn_view_n_torrents', { count: torrent.torrentsList.length }) : t('btn_select_torrent'));
 
   return `
-    <tr class="torrent-row ${isSelected ? 'selected' : ''} ${isVirtual ? 'is-virtual-category-row' : ''}" data-hash="${t.hash}">
+    <tr class="torrent-row ${isSelected ? 'selected' : ''} ${isVirtual ? 'is-virtual-category-row' : ''}" data-hash="${torrent.hash}">
       <td class="cell-action">
         <button class="btn btn-outline btn-xs btn-select-torrent" title="${btnText}">
           <span>${btnText}</span>
         </button>
       </td>
       <td class="cell-name">
-        <span class="torrent-name-text" title="${t.name}">${t.name}</span>
+        <span class="torrent-name-text" title="${torrent.name}">${torrent.name}</span>
         <span class="torrent-hash-sub">${hashSub}</span>
       </td>
       <td class="cell-category">

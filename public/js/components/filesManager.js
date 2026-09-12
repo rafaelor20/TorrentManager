@@ -312,7 +312,7 @@ export function obterArquivosVisiveis() {
 
     // 3. Filter: Instant search by multiple substrings (all words must match)
     if (tokensBusca.length > 0) {
-      const searchStr = f._searchNormalized || normalizarTextoBusca(`${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`);
+      const searchStr = f._searchNormalized || (f._searchNormalized = normalizarTextoBusca(`${f._fileName || ''} ${f._dirPath || ''} ${f._originTorrentName || ''} ${f.name || ''} ${f.path || ''}`));
       for (let i = 0; i < tokensBusca.length; i++) {
         if (!searchStr.includes(tokensBusca[i])) {
           return false;
@@ -1171,9 +1171,7 @@ export async function selecionarTorrent(torrent) {
             _originFileIndex: fileIndex,
             _fileName: onlyFileName,
             _dirPath: dirConsolidado,
-            _searchNormalized: normalizarTextoBusca(`${onlyFileName} ${dirConsolidado} ${t.name} ${f.name || ''} ${f.path || ''}`),
           };
-          itemConsolidado._searchLower = itemConsolidado._searchNormalized;
 
           if (itemConsolidado.priority !== 0) {
             state.arquivosSelecionadosIndices.add(globalIndex);
@@ -1223,8 +1221,6 @@ export async function selecionarTorrent(torrent) {
         f._fileIndex = f.index !== undefined ? f.index : idx;
         f._fileName = extrairApenasNomeArquivo(f.name, f.path);
         f._dirPath = extrairApenasCaminho(f.path, f.name);
-        f._searchNormalized = normalizarTextoBusca(`${f._fileName} ${f._dirPath} ${f.name || ''} ${f.path || ''}`);
-        f._searchLower = f._searchNormalized;
 
         if (f.priority !== 0) {
           state.arquivosSelecionadosIndices.add(f._fileIndex);
@@ -1358,7 +1354,7 @@ export function perguntarExclusaoArquivosFisicos(qtdDesativados) {
 }
 
 async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados) {
-  const CHUNK_SIZE = 1500;
+  const CHUNK_SIZE = 500;
 
   // If both arrays are small, send directly in a single fast request
   if (marcados.length <= CHUNK_SIZE && desmarcados.length <= CHUNK_SIZE) {
@@ -1375,7 +1371,7 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
   let totalEspacoLiberadoBytes = 0;
   let todosOk = true;
 
-  // 1. Send checked items in chunks of 1500
+  // 1. Send checked items in chunks of 500
   for (let i = 0; i < marcados.length; i += CHUNK_SIZE) {
     const chunk = marcados.slice(i, i + CHUNK_SIZE);
     const { ok, data } = await apiService.applyPriority(hash, {
@@ -1383,14 +1379,17 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
       desmarcadosIndices: [],
       apagarDesativados: false,
     });
-    if (ok && data.sucesso) {
+    if (ok && data?.sucesso) {
       totalMarcadosAlterados += (data.marcadosAlterados || chunk.length);
     } else {
       todosOk = false;
     }
+    if (i + CHUNK_SIZE < marcados.length) {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
   }
 
-  // 2. Send unchecked items in chunks of 1500 (deletion on the last chunk if requested)
+  // 2. Send unchecked items in chunks of 500 (deletion on the last chunk if requested)
   for (let i = 0; i < desmarcados.length; i += CHUNK_SIZE) {
     const chunk = desmarcados.slice(i, i + CHUNK_SIZE);
     const isLastChunk = (i + CHUNK_SIZE) >= desmarcados.length;
@@ -1399,7 +1398,7 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
       desmarcadosIndices: chunk,
       apagarDesativados: isLastChunk ? apagarDesativados : false,
     });
-    if (ok && data.sucesso) {
+    if (ok && data?.sucesso) {
       totalDesmarcadosAlterados += (data.desmarcadosAlterados || chunk.length);
       if (data.detalhes?.arquivosApagados) {
         totalArquivosApagados += (data.detalhes.arquivosApagados || 0);
@@ -1407,6 +1406,9 @@ async function enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesat
       }
     } else {
       todosOk = false;
+    }
+    if (i + CHUNK_SIZE < desmarcados.length) {
+      await new Promise((resolve) => setTimeout(resolve, 60));
     }
   }
 
@@ -1500,7 +1502,8 @@ export async function salvarPrioridades() {
       let totalBytesLiberados = 0;
       let algumErro = false;
 
-      await executarComConcorrencia(Array.from(porTorrent.entries()), 3, async ([hash, { marcados, desmarcados }]) => {
+      // Apply sequentially (concurrency 1) to prevent overwhelming qBittorrent disk queue and lock contention
+      await executarComConcorrencia(Array.from(porTorrent.entries()), 1, async ([hash, { marcados, desmarcados }]) => {
         const { ok, data } = await enviarPrioridadesEmLotes(hash, marcados, desmarcados, apagarDesativados);
         if (ok && data?.sucesso) {
           if (data.detalhes?.arquivosApagados) {

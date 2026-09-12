@@ -80,17 +80,65 @@ export const apiService = {
   },
 
   async getBatchTorrentFiles(hashes) {
-    try {
-      const res = await fetch('/api/torrents/batch-files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hashes }),
-      });
-      const data = await res.json();
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      return { ok: false, status: 0, data: { sucesso: false, erro: err.message, filesByHash: {} } };
+    if (!Array.isArray(hashes) || hashes.length === 0) {
+      return { ok: true, status: 200, data: { sucesso: true, filesByHash: {} } };
     }
+
+    const SUB_BATCH_SIZE = 8;
+    if (hashes.length <= SUB_BATCH_SIZE) {
+      try {
+        const res = await fetch('/api/torrents/batch-files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hashes }),
+        });
+        const data = await res.json();
+        return { ok: res.ok, status: res.status, data };
+      } catch (err) {
+        return { ok: false, status: 0, data: { sucesso: false, erro: err.message, filesByHash: {} } };
+      }
+    }
+
+    // Partition into smaller sub-batches to prevent overwhelming memory or network buffers
+    const subBatches = [];
+    for (let i = 0; i < hashes.length; i += SUB_BATCH_SIZE) {
+      subBatches.push(hashes.slice(i, i + SUB_BATCH_SIZE));
+    }
+
+    const mergedFilesByHash = {};
+    let anyOk = false;
+    const CONCURRENCY = 2;
+
+    for (let i = 0; i < subBatches.length; i += CONCURRENCY) {
+      const chunk = subBatches.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        chunk.map(async (batchHashes) => {
+          try {
+            const res = await fetch('/api/torrents/batch-files', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ hashes: batchHashes }),
+            });
+            const data = await res.json();
+            if (res.ok && data?.sucesso && data?.filesByHash) {
+              anyOk = true;
+              Object.assign(mergedFilesByHash, data.filesByHash);
+            }
+          } catch (err) {
+            console.warn('[apiService] Warning while fetching sub-batch of files:', err);
+          }
+        })
+      );
+    }
+
+    return {
+      ok: anyOk,
+      status: anyOk ? 200 : 500,
+      data: {
+        sucesso: anyOk,
+        filesByHash: mergedFilesByHash,
+      },
+    };
   },
 
   async applyPriority(hash, payload) {
